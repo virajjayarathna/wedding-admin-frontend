@@ -51,6 +51,8 @@ function WeddingEditorContent() {
   });
   // Local object URLs for image preview (avoids depending on S3 public access)
   const [localPreviews, setLocalPreviews] = useState<{ cover?: string; hero?: string }>({});
+  // Track which previews failed to load (404 or CORS error) so we can fall back to upload zone
+  const [brokenPreviews, setBrokenPreviews] = useState<{ cover?: boolean; hero?: boolean }>({});
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -122,8 +124,10 @@ function WeddingEditorContent() {
     // Show local preview immediately — doesn't depend on S3 public access
     const localUrl = URL.createObjectURL(file);
     setLocalPreviews(p => ({ ...p, [purpose]: localUrl }));
+    // Clear any prior broken-preview flag — blob URLs always load fine
+    setBrokenPreviews(b => ({ ...b, [purpose]: false }));
 
-    const toastId = toast.loading(`Uploading ${purpose} photo…`);
+    const toastId = toast.loading(`Uploading ${purpose} photo… 0%`);
     try {
       // Send file to backend — backend handles S3 upload server-side (avoids CORS)
       const formData = new FormData();
@@ -131,11 +135,19 @@ function WeddingEditorContent() {
       formData.append('purpose', purpose);
       const { data } = await api.post('/admin/wedding/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        // Upload to S3 via backend can take a while for large images — override global 15s timeout
+        timeout: 120_000,
+        onUploadProgress: (e) => {
+          const pct = e.total ? Math.round((e.loaded / e.total) * 100) : 0;
+          toast.loading(`Uploading ${purpose} photo… ${pct}%`, { id: toastId });
+        },
       });
       const { publicUrl } = data.data;
-      // Refresh wedding state with updated S3 URL
+      // Update wedding state with the S3 URL (used when page reloads from DB)
       const field = purpose === 'cover' ? 'coverPhotoUrl' : 'heroPhotoUrl';
       setWedding(w => w ? { ...w, [field]: publicUrl } : w);
+      // Keep the blob URL in localPreviews — it's already showing and always loads.
+      // Switching to the proxy URL here would trigger onError in dev (CORS) and hide the preview.
       toast.success('Photo uploaded!', { id: toastId });
     } catch (e) {
       // Revert local preview on error
@@ -220,42 +232,26 @@ function WeddingEditorContent() {
 
         {/* MEDIA TAB */}
         {tab === 'media' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             {(['cover', 'hero'] as const).map(purpose => {
               const previewSrc = localPreviews[purpose];
               const label = purpose === 'cover' ? 'Cover Photo' : 'Hero Photo';
               const hint = purpose === 'cover' ? 'Main banner image' : 'Background behind couple names';
-              const hasPhoto = !!previewSrc;
+              const aspectRatio = purpose === 'cover' ? '16 / 9' : '3 / 2';
+              const dimHint = purpose === 'cover'
+                ? 'Recommended: 2400 × 1350 px (16:9) — looks sharp on all screens'
+                : 'Recommended: 2000 × 1330 px (3:2) — will auto-crop for mobile';
+              const hasPhoto = !!previewSrc && !brokenPreviews[purpose];
 
               return (
-                <div key={purpose} className="card">
-                  <h2 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '14px' }}>
-                    {label}
-                    <span style={{ fontWeight: 400, fontSize: '12px', color: 'var(--color-text-muted)', marginLeft: '8px' }}>{hint}</span>
-                  </h2>
-
-                  {hasPhoto ? (
-                    /* ── Thumbnail card (uploaded state) ── */
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: '16px',
-                      padding: '12px', borderRadius: '12px',
-                      background: 'var(--color-surface-2)',
-                      border: '1px solid var(--color-border-2)',
-                    }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={previewSrc}
-                        alt={label}
-                        style={{
-                          width: '80px', height: '60px',
-                          objectFit: 'cover', borderRadius: '8px',
-                          flexShrink: 0, display: 'block',
-                        }}
-                      />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: '13px', fontWeight: 500, marginBottom: '2px' }}>{label}</p>
-                        <p style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Uploaded ✓</p>
-                      </div>
+                <div key={purpose} className="card" style={{ padding: '20px' }}>
+                  {/* Header row */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
+                    <div>
+                      <h2 style={{ fontSize: '15px', fontWeight: 600, margin: 0 }}>{label}</h2>
+                      <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--color-text-muted)' }}>{hint}</p>
+                    </div>
+                    {hasPhoto && (
                       <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
                         <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', gap: '6px' }}>
                           <Upload size={13} /> Replace
@@ -266,28 +262,76 @@ function WeddingEditorContent() {
                           <X size={14} />
                         </button>
                       </div>
+                    )}
+                  </div>
+
+                  {hasPhoto ? (
+                    /* ── Full aspect-ratio preview (uploaded state) ── */
+                    <div style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', aspectRatio }}>
+                      <img
+                        src={previewSrc}
+                        alt={label}
+                        onError={(e) => {
+                          console.error('Image failed to load:', previewSrc);
+                          // S3 object not found or CORS error — show upload zone instead
+                          setBrokenPreviews(b => ({ ...b, [purpose]: true }));
+                        }}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          objectPosition: 'center',
+                          display: 'block',
+                        }}
+                      />
+                      {/* Responsive overlay hints */}
+                      <div style={{
+                        position: 'absolute', inset: 0, display: 'flex',
+                        flexDirection: 'column', justifyContent: 'flex-end',
+                        background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 50%)',
+                        padding: '14px 16px', pointerEvents: 'none',
+                      }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'rgba(255,255,255,0.85)' }}>
+                          <CheckCircle size={12} />
+                          Uploaded · auto-crops for mobile via CSS
+                        </span>
+                      </div>
                     </div>
                   ) : (
                     /* ── Dashed upload zone (empty state) ── */
-                    <label className="upload-zone-wrap">
+                    <label style={{ cursor: 'pointer', display: 'block' }}>
                       <div style={{
                         display: 'flex', flexDirection: 'column',
                         alignItems: 'center', justifyContent: 'center',
-                        height: '120px', borderRadius: '12px',
+                        aspectRatio,
+                        borderRadius: '10px',
                         border: '2px dashed var(--color-border-2)',
                         background: 'var(--color-surface-2)',
                         color: 'var(--color-text-muted)',
-                        transition: 'border-color 0.2s',
-                        gap: '8px',
+                        transition: 'border-color 0.2s, background 0.2s',
+                        gap: '10px',
                       }}>
-                        <Upload size={24} style={{ opacity: 0.4 }} />
-                        <p style={{ fontSize: '13px', margin: 0 }}>Click to upload {label.toLowerCase()}</p>
-                        <p style={{ fontSize: '11px', opacity: 0.6 }}>JPG, PNG or WebP • Max 10 MB</p>
+                        <div style={{
+                          width: '48px', height: '48px', borderRadius: '50%',
+                          background: 'var(--color-surface)', display: 'flex',
+                          alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <Upload size={22} style={{ opacity: 0.5 }} />
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <p style={{ fontSize: '13px', fontWeight: 500, margin: '0 0 4px' }}>Click to upload {label.toLowerCase()}</p>
+                          <p style={{ fontSize: '11px', opacity: 0.6, margin: 0 }}>JPG, PNG or WebP · Max 10 MB</p>
+                        </div>
                       </div>
                       <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
                         onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(purpose, f); }} />
                     </label>
                   )}
+
+                  {/* Dimension hint */}
+                  <p style={{ margin: '10px 0 0', fontSize: '11px', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <span style={{ opacity: 0.5 }}>💡</span> {dimHint}
+                  </p>
                 </div>
               );
             })}
