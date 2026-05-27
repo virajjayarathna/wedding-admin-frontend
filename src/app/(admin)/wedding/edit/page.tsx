@@ -107,7 +107,7 @@ function WeddingEditorContent() {
     if (!wedding) return;
     setPublishing(true);
     try {
-      const { data } = await api.post('/admin/wedding/publish');
+      const { data } = await api.patch('/admin/wedding/publish');
       setWedding(w => w ? { ...w, isPublished: data.data.isPublished } : w);
       toast.success(data.data.isPublished ? 'Wedding page published! 🎉' : 'Wedding page unpublished');
     } catch (e) {
