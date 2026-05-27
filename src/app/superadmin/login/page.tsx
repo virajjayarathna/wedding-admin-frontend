@@ -1,0 +1,104 @@
+'use client';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
+import { Eye, EyeOff, Lock, Mail, Crown } from 'lucide-react';
+import api, { getErrorMessage } from '@/lib/api';
+import { saveAuth } from '@/lib/auth';
+
+export default function SuperAdminLoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const { data } = await api.post('/auth/superadmin/login', { email, password });
+      saveAuth(data.token, data.user);
+      toast.success('Welcome back, Super Admin!');
+      router.push('/superadmin');
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'var(--color-bg)' }}>
+      {/* Background gradient orbs */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div style={{ position:'absolute', top:'-20%', left:'-10%', width:'600px', height:'600px', borderRadius:'50%', background:'radial-gradient(circle, rgba(201,168,76,0.06) 0%, transparent 70%)' }} />
+        <div style={{ position:'absolute', bottom:'-20%', right:'-10%', width:'500px', height:'500px', borderRadius:'50%', background:'radial-gradient(circle, rgba(201,168,76,0.04) 0%, transparent 70%)' }} />
+      </div>
+
+      <div className="w-full max-w-md animate-fade-in" style={{ position: 'relative', zIndex: 1 }}>
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4" style={{ background: 'linear-gradient(135deg, var(--color-gold), var(--color-gold-dark))', boxShadow: '0 8px 32px rgba(201,168,76,0.3)' }}>
+            <Crown size={28} color="#000" />
+          </div>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, color: 'var(--color-text-primary)' }}>Super Admin</h1>
+          <p style={{ color: 'var(--color-text-secondary)', marginTop: '6px', fontSize: '14px' }}>Platform management portal</p>
+        </div>
+
+        {/* Card */}
+        <div className="card" style={{ padding: '32px' }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div>
+              <label className="input-label">Email address</label>
+              <div style={{ position: 'relative' }}>
+                <Mail size={16} style={{ position:'absolute', left:'12px', top:'50%', transform:'translateY(-50%)', color:'var(--color-text-muted)' }} />
+                <input
+                  id="sa-email"
+                  type="email"
+                  className="input"
+                  style={{ paddingLeft: '38px' }}
+                  placeholder="superadmin@example.com"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="input-label">Password</label>
+              <div style={{ position: 'relative' }}>
+                <Lock size={16} style={{ position:'absolute', left:'12px', top:'50%', transform:'translateY(-50%)', color:'var(--color-text-muted)' }} />
+                <input
+                  id="sa-password"
+                  type={showPassword ? 'text' : 'password'}
+                  className="input"
+                  style={{ paddingLeft: '38px', paddingRight: '42px' }}
+                  placeholder="Enter password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position:'absolute', right:'12px', top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'var(--color-text-muted)' }}>
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <button id="sa-login-btn" type="submit" className="btn btn-primary btn-lg" disabled={loading} style={{ marginTop: '4px' }}>
+              {loading ? 'Signing in…' : 'Sign In'}
+            </button>
+          </form>
+        </div>
+
+        <p style={{ textAlign:'center', marginTop:'20px', fontSize:'13px', color:'var(--color-text-muted)' }}>
+          Admin portal?{' '}
+          <a href="/login" style={{ color:'var(--color-gold)', textDecoration:'none' }}>Sign in here</a>
+        </p>
+      </div>
+    </div>
+  );
+}
