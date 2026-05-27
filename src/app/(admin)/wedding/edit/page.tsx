@@ -1,7 +1,7 @@
 'use client';
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { Globe, EyeOff, Upload, CheckCircle } from 'lucide-react';
+import { Globe, EyeOff, Upload, CheckCircle, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api, { getErrorMessage } from '@/lib/api';
 import type { WeddingDetails } from '@/lib/types';
@@ -49,6 +49,8 @@ function WeddingEditorContent() {
     bridePhone: '', groomPhone: '', musicUrl: '', musicType: 'SPOTIFY' as 'SPOTIFY' | 'UPLOAD',
     primaryColor: '#c9a84c', accentColor: '#f0d080', fontFamily: 'Inter',
   });
+  // Local object URLs for image preview (avoids depending on S3 public access)
+  const [localPreviews, setLocalPreviews] = useState<{ cover?: string; hero?: string }>({});
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -68,6 +70,11 @@ function WeddingEditorContent() {
             musicType: w.musicType || 'SPOTIFY',
             primaryColor: w.primaryColor || '#c9a84c',
             accentColor: w.accentColor || '#f0d080', fontFamily: w.fontFamily || 'Inter',
+          });
+          // Pre-populate previews with existing S3 URLs so prior uploads show as thumbnails
+          setLocalPreviews({
+            cover: w.coverPhotoUrl || undefined,
+            hero: w.heroPhotoUrl || undefined,
           });
         }
       })
@@ -112,20 +119,35 @@ function WeddingEditorContent() {
 
   async function handlePhotoUpload(purpose: 'cover' | 'hero', file: File) {
     if (!file) return;
+    // Show local preview immediately — doesn't depend on S3 public access
+    const localUrl = URL.createObjectURL(file);
+    setLocalPreviews(p => ({ ...p, [purpose]: localUrl }));
+
     const toastId = toast.loading(`Uploading ${purpose} photo…`);
     try {
-      const { data } = await api.post('/admin/wedding/upload-url', { fileType: file.type, purpose });
-      const { uploadUrl, publicUrl } = data.data;
-      // Direct PUT to S3
-      await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
-      // Save URL to wedding record
+      // Send file to backend — backend handles S3 upload server-side (avoids CORS)
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('purpose', purpose);
+      const { data } = await api.post('/admin/wedding/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const { publicUrl } = data.data;
+      // Refresh wedding state with updated S3 URL
       const field = purpose === 'cover' ? 'coverPhotoUrl' : 'heroPhotoUrl';
-      await api.put('/admin/wedding', { ...form, weddingDate: new Date(form.weddingDate).toISOString(), [field]: publicUrl });
       setWedding(w => w ? { ...w, [field]: publicUrl } : w);
       toast.success('Photo uploaded!', { id: toastId });
     } catch (e) {
+      // Revert local preview on error
+      setLocalPreviews(p => ({ ...p, [purpose]: undefined }));
       toast.error(getErrorMessage(e), { id: toastId });
     }
+  }
+
+  function clearPhoto(purpose: 'cover' | 'hero') {
+    setLocalPreviews(p => ({ ...p, [purpose]: undefined }));
+    const field = purpose === 'cover' ? 'coverPhotoUrl' : 'heroPhotoUrl';
+    setWedding(w => w ? { ...w, [field]: null } : w);
   }
 
   if (loading) return <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)' }}>Loading…</div>;
@@ -199,20 +221,77 @@ function WeddingEditorContent() {
         {/* MEDIA TAB */}
         {tab === 'media' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {(['cover', 'hero'] as const).map(purpose => (
-              <div key={purpose} className="card">
-                <h2 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '16px', textTransform: 'capitalize' }}>{purpose} Photo</h2>
-                {wedding?.[purpose === 'cover' ? 'coverPhotoUrl' : 'heroPhotoUrl'] && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={wedding[purpose === 'cover' ? 'coverPhotoUrl' : 'heroPhotoUrl']!} alt={purpose} style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '10px', marginBottom: '12px' }} />
-                )}
-                <label className="btn btn-secondary" style={{ cursor: 'pointer', display: 'inline-flex', gap: '8px' }}>
-                  <Upload size={15} /> Upload {purpose} photo
-                  <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(purpose, f); }} />
-                </label>
-                <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '8px' }}>JPG, PNG, or WebP • Max 10MB</p>
-              </div>
-            ))}
+            {(['cover', 'hero'] as const).map(purpose => {
+              const previewSrc = localPreviews[purpose];
+              const label = purpose === 'cover' ? 'Cover Photo' : 'Hero Photo';
+              const hint = purpose === 'cover' ? 'Main banner image' : 'Background behind couple names';
+              const hasPhoto = !!previewSrc;
+
+              return (
+                <div key={purpose} className="card">
+                  <h2 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '14px' }}>
+                    {label}
+                    <span style={{ fontWeight: 400, fontSize: '12px', color: 'var(--color-text-muted)', marginLeft: '8px' }}>{hint}</span>
+                  </h2>
+
+                  {hasPhoto ? (
+                    /* ── Thumbnail card (uploaded state) ── */
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: '16px',
+                      padding: '12px', borderRadius: '12px',
+                      background: 'var(--color-surface-2)',
+                      border: '1px solid var(--color-border-2)',
+                    }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={previewSrc}
+                        alt={label}
+                        style={{
+                          width: '80px', height: '60px',
+                          objectFit: 'cover', borderRadius: '8px',
+                          flexShrink: 0, display: 'block',
+                        }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: '13px', fontWeight: 500, marginBottom: '2px' }}>{label}</p>
+                        <p style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Uploaded ✓</p>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                        <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', gap: '6px' }}>
+                          <Upload size={13} /> Replace
+                          <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
+                            onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(purpose, f); }} />
+                        </label>
+                        <button type="button" className="btn btn-danger btn-icon" onClick={() => clearPhoto(purpose)} title="Remove">
+                          <X size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* ── Dashed upload zone (empty state) ── */
+                    <label className="upload-zone-wrap">
+                      <div style={{
+                        display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', justifyContent: 'center',
+                        height: '120px', borderRadius: '12px',
+                        border: '2px dashed var(--color-border-2)',
+                        background: 'var(--color-surface-2)',
+                        color: 'var(--color-text-muted)',
+                        transition: 'border-color 0.2s',
+                        gap: '8px',
+                      }}>
+                        <Upload size={24} style={{ opacity: 0.4 }} />
+                        <p style={{ fontSize: '13px', margin: 0 }}>Click to upload {label.toLowerCase()}</p>
+                        <p style={{ fontSize: '11px', opacity: 0.6 }}>JPG, PNG or WebP • Max 10 MB</p>
+                      </div>
+                      <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(purpose, f); }} />
+                    </label>
+                  )}
+                </div>
+              );
+            })}
+
             <div className="card">
               <h2 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '16px' }}>Background Music</h2>
               <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
@@ -310,7 +389,7 @@ function TimelineEditor({ weddingId }: { weddingId?: string }) {
   async function save() {
     setSaving(true);
     try {
-      await api.put('/admin/wedding/timeline', { timeline: items });
+      await api.patch('/admin/wedding/timeline', { timeline: items });
       toast.success('Timeline saved!');
     } catch (e) {
       toast.error(getErrorMessage(e));
