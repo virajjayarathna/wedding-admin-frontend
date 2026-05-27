@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { Globe, EyeOff, Upload, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api, { getErrorMessage } from '@/lib/api';
@@ -15,8 +16,29 @@ const COLOR_PRESETS = [
   { primary: '#10b981', accent: '#6ee7b7', label: 'Emerald' },
 ];
 
-export default function WeddingEditorPage() {
-  const [tab, setTab] = useState<Tab>('basics');
+function WeddingEditorContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  
+  const tabParam = searchParams.get('tab') as Tab | null;
+  const [tab, setTabState] = useState<Tab>(
+    (tabParam && ['basics', 'media', 'venue', 'timeline', 'style'].includes(tabParam)) ? tabParam : 'basics'
+  );
+
+  const setTab = (newTab: Tab) => {
+    setTabState(newTab);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', newTab);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  useEffect(() => {
+    if (tabParam && ['basics', 'media', 'venue', 'timeline', 'style'].includes(tabParam) && tabParam !== tab) {
+      setTabState(tabParam);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabParam]);
   const [wedding, setWedding] = useState<WeddingDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -256,6 +278,14 @@ export default function WeddingEditorPage() {
         )}
       </form>
     </div>
+  );
+}
+
+export default function WeddingEditorPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)' }}>Loading…</div>}>
+      <WeddingEditorContent />
+    </Suspense>
   );
 }
 
