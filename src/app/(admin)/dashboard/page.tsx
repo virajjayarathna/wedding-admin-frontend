@@ -4,17 +4,23 @@ import { Users, UserCheck, UserX, Clock, Hash, CalendarDays } from 'lucide-react
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
-import { formatDistanceToNow, isPast } from 'date-fns';
+import { format } from 'date-fns';
 import api, { getErrorMessage } from '@/lib/api';
 import type { RsvpSummary, WeddingDetails } from '@/lib/types';
 
+// ─── Countdown — fully client-side to avoid hydration mismatch ────────────────
 function Countdown({ date }: { date: string }) {
-  const [parts, setParts] = useState({ days: 0, hrs: 0, min: 0, sec: 0 });
-  const past = isPast(new Date(date));
+  // Start with null so server renders nothing, client fills in after mount
+  const [parts, setParts] = useState<{ days: number; hrs: number; min: number; sec: number } | null>(null);
+  const [past, setPast] = useState(false);
 
   useEffect(() => {
     function tick() {
-      const diff = Math.max(0, new Date(date).getTime() - Date.now());
+      const diff = new Date(date).getTime() - Date.now();
+      if (diff <= 0) {
+        setPast(true);
+        return;
+      }
       setParts({
         days: Math.floor(diff / 86400000),
         hrs:  Math.floor((diff % 86400000) / 3600000),
@@ -27,11 +33,13 @@ function Countdown({ date }: { date: string }) {
     return () => clearInterval(t);
   }, [date]);
 
+  // Don't render anything until client hydrates — avoids mismatch
+  if (parts === null && !past) return <div style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>Calculating…</div>;
   if (past) return <div style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>Wedding day has passed — congratulations! 🎉</div>;
 
   return (
     <div style={{ display: 'flex', gap: '16px' }}>
-      {Object.entries(parts).map(([label, val]) => (
+      {Object.entries(parts!).map(([label, val]) => (
         <div key={label} style={{ textAlign: 'center' }}>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '32px', fontWeight: 700, color: 'var(--color-gold)', lineHeight: 1 }}>{String(val).padStart(2, '0')}</div>
           <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', textTransform: 'uppercase', marginTop: '4px' }}>{label}</div>
@@ -53,7 +61,6 @@ export default function AdminDashboardPage() {
       api.get('/admin/wedding').then(r => setWedding(r.data.data)),
       api.get('/admin/guests/rsvp-summary').then(r => setRsvp(r.data.data)),
     ]).catch(e => {
-      // If 404 (no wedding set up yet), that's ok
       if (e?.response?.status !== 404) toast.error(getErrorMessage(e));
     }).finally(() => setLoading(false));
   }, []);
@@ -65,6 +72,11 @@ export default function AdminDashboardPage() {
     { name: 'Maybe',     value: rsvp.maybe,     color: RSVP_COLORS.maybe },
   ].filter(d => d.value > 0) : [];
 
+  // Use date-fns format (locale-independent) instead of toLocaleDateString
+  const weddingDateFormatted = wedding?.weddingDate
+    ? format(new Date(wedding.weddingDate), 'EEEE, MMMM d, yyyy')
+    : null;
+
   return (
     <div className="animate-fade-in">
       <div className="page-header">
@@ -72,7 +84,7 @@ export default function AdminDashboardPage() {
           {wedding ? `${wedding.brideName} & ${wedding.groomName}` : 'Your Dashboard'}
         </h1>
         <p className="page-subtitle">
-          {wedding?.weddingDate ? `Wedding on ${new Date(wedding.weddingDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}` : 'Set up your wedding page to get started'}
+          {weddingDateFormatted ? `Wedding on ${weddingDateFormatted}` : 'Set up your wedding page to get started'}
         </p>
       </div>
 
@@ -89,11 +101,11 @@ export default function AdminDashboardPage() {
       {rsvp && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '16px', marginBottom: '24px' }}>
           {[
-            { label: 'Total Guests',     value: rsvp.totalGuests,            color: 'var(--color-gold)',    icon: <Users size={20} /> },
-            { label: 'Attending',        value: rsvp.attending,              color: '#22c55e',              icon: <UserCheck size={20} /> },
-            { label: 'Declining',        value: rsvp.declining,              color: '#ef4444',              icon: <UserX size={20} /> },
-            { label: 'Pending',          value: rsvp.pending,                color: '#94a3b8',              icon: <Clock size={20} /> },
-            { label: 'Head Count',       value: rsvp.totalConfirmedHeadcount, color: 'var(--color-info)',   icon: <Hash size={20} /> },
+            { label: 'Total Guests',      value: rsvp.totalGuests,             color: 'var(--color-gold)',   icon: <Users size={20} /> },
+            { label: 'Attending',         value: rsvp.attending,               color: '#22c55e',             icon: <UserCheck size={20} /> },
+            { label: 'Declining',         value: rsvp.declining,               color: '#ef4444',             icon: <UserX size={20} /> },
+            { label: 'Pending',           value: rsvp.pending,                 color: '#94a3b8',             icon: <Clock size={20} /> },
+            { label: 'Head Count',        value: rsvp.totalConfirmedHeadcount, color: 'var(--color-info)',   icon: <Hash size={20} /> },
           ].map(c => (
             <div key={c.label} className="stat-card">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>

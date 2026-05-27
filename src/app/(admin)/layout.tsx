@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { format } from 'date-fns';
 import { LayoutDashboard, Settings, Users, LogOut, Heart, ChevronRight, ExternalLink } from 'lucide-react';
 import { getAuthUser, clearAuth } from '@/lib/auth';
 import type { AuthUser } from '@/lib/types';
@@ -77,7 +78,7 @@ export default function AdminPortalLayout({ children }: { children: React.ReactN
           <div style={{ margin: '0 4px 8px', padding: '10px 12px', background: 'var(--color-surface-2)', borderRadius: '10px', border: '1px solid var(--color-border)' }}>
             <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Subscription ends</div>
             <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontWeight: 500 }}>
-              {new Date(user.subscriptionEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              {format(new Date(user.subscriptionEnd), 'MMM d, yyyy')}
             </div>
           </div>
         )}
