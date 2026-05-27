@@ -193,7 +193,7 @@ function WeddingEditorContent() {
       {/* Slug Display */}
       {wedding?.weddingSlug && (
         <div style={{ marginBottom: '20px', padding: '12px 16px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '10px', fontSize: '13px', color: 'var(--color-text-secondary)' }}>
-          🔗 Invitation link: <code style={{ color: 'var(--color-gold)', marginLeft: '6px' }}>{guestBaseUrl}/invite/{wedding.weddingSlug}</code>
+          🔗 Invitation link: <code style={{ color: 'var(--color-accent)', marginLeft: '6px', fontWeight: 500 }}>{guestBaseUrl}/invite/{wedding.weddingSlug}</code>
         </div>
       )}
 
@@ -373,7 +373,7 @@ function WeddingEditorContent() {
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '8px' }}>
                 {COLOR_PRESETS.map(p => (
                   <button key={p.label} type="button" onClick={() => { set('primaryColor', p.primary); set('accentColor', p.accent); }}
-                    style={{ width: '44px', height: '44px', borderRadius: '50%', background: `linear-gradient(135deg, ${p.primary}, ${p.accent})`, border: form.primaryColor === p.primary ? '3px solid white' : '3px solid transparent', cursor: 'pointer', outline: 'none', boxShadow: form.primaryColor === p.primary ? '0 0 0 2px var(--color-gold)' : 'none' }}
+                    style={{ width: '44px', height: '44px', borderRadius: '50%', background: `linear-gradient(135deg, ${p.primary}, ${p.accent})`, border: form.primaryColor === p.primary ? '3px solid white' : '3px solid transparent', cursor: 'pointer', outline: 'none', boxShadow: form.primaryColor === p.primary ? '0 0 0 2px var(--color-accent)' : 'none' }}
                     title={p.label}
                   />
                 ))}

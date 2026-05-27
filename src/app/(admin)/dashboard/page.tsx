@@ -41,7 +41,7 @@ function Countdown({ date }: { date: string }) {
     <div style={{ display: 'flex', gap: '16px' }}>
       {Object.entries(parts!).map(([label, val]) => (
         <div key={label} style={{ textAlign: 'center' }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: '32px', fontWeight: 700, color: 'var(--color-gold)', lineHeight: 1 }}>{String(val).padStart(2, '0')}</div>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: '32px', fontWeight: 700, color: 'var(--color-accent)', lineHeight: 1 }}>{String(val).padStart(2, '0')}</div>
           <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', textTransform: 'uppercase', marginTop: '4px' }}>{label}</div>
         </div>
       ))}
@@ -101,7 +101,7 @@ export default function AdminDashboardPage() {
       {rsvp && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '16px', marginBottom: '24px' }}>
           {[
-            { label: 'Total Guests',      value: rsvp.totalGuests,             color: 'var(--color-gold)',   icon: <Users size={20} /> },
+            { label: 'Total Guests',      value: rsvp.totalGuests,             color: 'var(--color-accent)',   icon: <Users size={20} /> },
             { label: 'Attending',         value: rsvp.attending,               color: '#22c55e',             icon: <UserCheck size={20} /> },
             { label: 'Declining',         value: rsvp.declining,               color: '#ef4444',             icon: <UserX size={20} /> },
             { label: 'Pending',           value: rsvp.pending,                 color: '#94a3b8',             icon: <Clock size={20} /> },
@@ -123,7 +123,7 @@ export default function AdminDashboardPage() {
         {wedding?.weddingDate && (
           <div className="card">
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-              <CalendarDays size={18} style={{ color: 'var(--color-gold)' }} />
+              <CalendarDays size={18} style={{ color: 'var(--color-accent)' }} />
               <h2 style={{ fontSize: '15px', fontWeight: 600 }}>Countdown</h2>
             </div>
             <Countdown date={wedding.weddingDate} />

@@ -75,7 +75,7 @@ function WhatsAppModal({ data, onClose }: WhatsAppModalProps) {
           <button className="btn btn-ghost btn-icon" onClick={onClose}><X size={18} /></button>
         </div>
         <p style={{ color: 'var(--color-text-secondary)', fontSize: '14px', marginBottom: '12px' }}>Invite link for <strong>{data.guestName}</strong>:</p>
-        <div style={{ padding: '10px 14px', background: 'var(--color-surface-2)', borderRadius: '8px', fontSize: '13px', wordBreak: 'break-all', color: 'var(--color-gold)', marginBottom: '16px' }}>{data.inviteUrl}</div>
+        <div style={{ padding: '10px 14px', background: 'var(--color-surface-2)', borderRadius: '8px', fontSize: '13px', wordBreak: 'break-all', color: 'var(--color-accent)', marginBottom: '16px' }}>{data.inviteUrl}</div>
         <div style={{ padding: '12px 14px', background: 'var(--color-surface-2)', borderRadius: '8px', fontSize: '13px', lineHeight: '1.6', whiteSpace: 'pre-wrap', color: 'var(--color-text-secondary)', maxHeight: '200px', overflow: 'auto', marginBottom: '16px' }}>{data.message}</div>
         <div style={{ display: 'flex', gap: '10px' }}>
           {data.whatsappUrl && (

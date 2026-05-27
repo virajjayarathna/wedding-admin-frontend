@@ -31,14 +31,14 @@ export default function AdminLoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'var(--color-bg)' }}>
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div style={{ position:'absolute', top:'-20%', right:'-10%', width:'600px', height:'600px', borderRadius:'50%', background:'radial-gradient(circle, rgba(201,168,76,0.07) 0%, transparent 70%)' }} />
-        <div style={{ position:'absolute', bottom:'-20%', left:'-10%', width:'500px', height:'500px', borderRadius:'50%', background:'radial-gradient(circle, rgba(201,168,76,0.04) 0%, transparent 70%)' }} />
+        <div style={{ position:'absolute', top:'-10%', right:'-5%', width:'500px', height:'500px', borderRadius:'50%', background:'radial-gradient(circle, rgba(244,114,182,0.08) 0%, transparent 70%)' }} />
+        <div style={{ position:'absolute', bottom:'-10%', left:'-5%', width:'400px', height:'400px', borderRadius:'50%', background:'radial-gradient(circle, rgba(30,41,59,0.05) 0%, transparent 70%)' }} />
       </div>
 
       <div className="w-full max-w-md animate-fade-in" style={{ position: 'relative', zIndex: 1 }}>
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4" style={{ background: 'linear-gradient(135deg, var(--color-gold), var(--color-gold-dark))', boxShadow: '0 8px 32px rgba(201,168,76,0.3)' }}>
-            <Heart size={28} color="#000" fill="#000" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4" style={{ background: 'linear-gradient(135deg, #f472b6, #ec4899)', boxShadow: '0 8px 32px rgba(236,72,153,0.25)' }}>
+            <Heart size={28} color="#fff" fill="#fff" />
           </div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, color: 'var(--color-text-primary)' }}>Wedding Portal</h1>
           <p style={{ color: 'var(--color-text-secondary)', marginTop: '6px', fontSize: '14px' }}>Sign in to manage your wedding</p>
@@ -93,7 +93,7 @@ export default function AdminLoginPage() {
 
         <p style={{ textAlign:'center', marginTop:'20px', fontSize:'13px', color:'var(--color-text-muted)' }}>
           Super Admin?{' '}
-          <a href="/superadmin/login" style={{ color:'var(--color-gold)', textDecoration:'none' }}>Sign in here</a>
+          <a href="/superadmin/login" style={{ color:'var(--color-accent)', textDecoration:'none', fontWeight: 500 }}>Sign in here</a>
         </p>
       </div>
     </div>
