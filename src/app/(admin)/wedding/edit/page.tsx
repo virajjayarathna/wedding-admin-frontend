@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import api, { getErrorMessage } from '@/lib/api';
 import type { WeddingDetails } from '@/lib/types';
 
-type Tab = 'basics' | 'media' | 'venue' | 'timeline' | 'style';
+type Tab = 'basics' | 'media' | 'venue' | 'timeline' | 'style' | 'pdf';
 
 const COLOR_PRESETS = [
   { primary: '#c9a84c', accent: '#f0d080', label: 'Gold' },
@@ -23,7 +23,7 @@ function WeddingEditorContent() {
   
   const tabParam = searchParams.get('tab') as Tab | null;
   const [tab, setTabState] = useState<Tab>(
-    (tabParam && ['basics', 'media', 'venue', 'timeline', 'style'].includes(tabParam)) ? tabParam : 'basics'
+    (tabParam && ['basics', 'media', 'venue', 'timeline', 'style', 'pdf'].includes(tabParam)) ? tabParam as Tab : 'basics'
   );
 
   const setTab = (newTab: Tab) => {
@@ -34,7 +34,7 @@ function WeddingEditorContent() {
   };
 
   useEffect(() => {
-    if (tabParam && ['basics', 'media', 'venue', 'timeline', 'style'].includes(tabParam) && tabParam !== tab) {
+    if (tabParam && ['basics', 'media', 'venue', 'timeline', 'style', 'pdf'].includes(tabParam) && tabParam !== tab) {
       setTabState(tabParam);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -49,11 +49,13 @@ function WeddingEditorContent() {
     bridePhone: '', groomPhone: '', brideFatherName: '', brideFatherPhone: '',
     groomFatherName: '', groomFatherPhone: '', musicUrl: '', musicType: 'SPOTIFY' as 'SPOTIFY' | 'UPLOAD',
     primaryColor: '#c9a84c', accentColor: '#f0d080', fontFamily: 'Inter',
+    pdfFont: 'Great Vibes', pdfWeddingDay: 'Saturday', pdfStartTime: '15:00', pdfEndTime: '23:00',
+    pdfCeremonyName: 'The Ceremony', pdfCeremonyTime: '16:00', rsvpDeadline: '',
   });
   // Local object URLs for image preview (avoids depending on S3 public access)
-  const [localPreviews, setLocalPreviews] = useState<{ cover?: string; hero?: string }>({});
+  const [localPreviews, setLocalPreviews] = useState<{ cover?: string; hero?: string; logo?: string }>({});
   // Track which previews failed to load (404 or CORS error) so we can fall back to upload zone
-  const [brokenPreviews, setBrokenPreviews] = useState<{ cover?: boolean; hero?: boolean }>({});
+  const [brokenPreviews, setBrokenPreviews] = useState<{ cover?: boolean; hero?: boolean; logo?: boolean }>({});
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -74,11 +76,16 @@ function WeddingEditorContent() {
             musicType: w.musicType || 'SPOTIFY',
             primaryColor: w.primaryColor || '#c9a84c',
             accentColor: w.accentColor || '#f0d080', fontFamily: w.fontFamily || 'Inter',
+            pdfFont: w.pdfFont || 'Great Vibes', pdfWeddingDay: w.pdfWeddingDay || 'Saturday',
+            pdfStartTime: w.pdfStartTime || '15:00', pdfEndTime: w.pdfEndTime || '23:00',
+            pdfCeremonyName: w.pdfCeremonyName || 'The Ceremony', pdfCeremonyTime: w.pdfCeremonyTime || '16:00',
+            rsvpDeadline: w.rsvpDeadline?.substring(0, 10) || '',
           });
           // Pre-populate previews with existing S3 URLs so prior uploads show as thumbnails
           setLocalPreviews({
             cover: w.coverPhotoUrl || undefined,
             hero: w.heroPhotoUrl || undefined,
+            logo: w.pdfLogoUrl || undefined,
           });
         }
       })
@@ -88,11 +95,19 @@ function WeddingEditorContent() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+
+    if (!form.brideName || !form.groomName || !form.weddingDate || !form.weddingSlug) {
+      setTab('basics');
+      toast.error('Please complete all required fields in the Basics tab first.');
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {
         ...form,
         weddingDate: form.weddingDate ? new Date(form.weddingDate).toISOString() : undefined,
+        rsvpDeadline: form.rsvpDeadline ? new Date(form.rsvpDeadline).toISOString() : undefined,
         musicUrl: form.musicUrl || undefined,
         venueMapsUrl: form.venueMapsUrl || undefined,
         loveStory: form.loveStory || undefined,
@@ -121,7 +136,7 @@ function WeddingEditorContent() {
     }
   }
 
-  async function handlePhotoUpload(purpose: 'cover' | 'hero', file: File) {
+  async function handlePhotoUpload(purpose: 'cover' | 'hero' | 'logo', file: File) {
     if (!file) return;
     // Show local preview immediately — doesn't depend on S3 public access
     const localUrl = URL.createObjectURL(file);
@@ -146,7 +161,7 @@ function WeddingEditorContent() {
       });
       const { publicUrl } = data.data;
       // Update wedding state with the S3 URL (used when page reloads from DB)
-      const field = purpose === 'cover' ? 'coverPhotoUrl' : 'heroPhotoUrl';
+      const field = purpose === 'cover' ? 'coverPhotoUrl' : purpose === 'hero' ? 'heroPhotoUrl' : 'pdfLogoUrl';
       setWedding(w => w ? { ...w, [field]: publicUrl } : w);
       // Keep the blob URL in localPreviews — it's already showing and always loads.
       // Switching to the proxy URL here would trigger onError in dev (CORS) and hide the preview.
@@ -158,9 +173,9 @@ function WeddingEditorContent() {
     }
   }
 
-  function clearPhoto(purpose: 'cover' | 'hero') {
+  function clearPhoto(purpose: 'cover' | 'hero' | 'logo') {
     setLocalPreviews(p => ({ ...p, [purpose]: undefined }));
-    const field = purpose === 'cover' ? 'coverPhotoUrl' : 'heroPhotoUrl';
+    const field = purpose === 'cover' ? 'coverPhotoUrl' : purpose === 'hero' ? 'heroPhotoUrl' : 'pdfLogoUrl';
     setWedding(w => w ? { ...w, [field]: null } : w);
   }
 
@@ -270,8 +285,8 @@ function WeddingEditorContent() {
 
       {/* Tab Bar */}
       <div className="tab-bar" style={{ marginBottom: '24px' }}>
-        {([['basics', 'Basics'], ['media', 'Photos'], ['venue', 'Venue'], ['timeline', 'Timeline'], ['style', 'Style']] as [Tab, string][]).map(([t, label]) => (
-          <button key={t} className={`tab-btn ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>{label}</button>
+        {([['basics', 'Basics'], ['media', 'Photos'], ['venue', 'Venue'], ['timeline', 'Timeline'], ['style', 'Style'], ['pdf', 'PDF Invite']] as [Tab, string][]).map(([t, label]) => (
+          <button key={t} type="button" className={`tab-btn ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>{label}</button>
         ))}
       </div>
 
@@ -297,15 +312,109 @@ function WeddingEditorContent() {
               <div><label className="input-label">Bride's Phone</label><input className="input" type="tel" value={form.bridePhone} onChange={e => set('bridePhone', e.target.value)} placeholder="+94771234567" /></div>
               <div><label className="input-label">Groom's Phone</label><input className="input" type="tel" value={form.groomPhone} onChange={e => set('groomPhone', e.target.value)} placeholder="+94771234567" /></div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-              <div><label className="input-label">Bride's Father's Name</label><input className="input" value={form.brideFatherName} onChange={e => set('brideFatherName', e.target.value)} placeholder="Shirantha Dasanayake" /></div>
-              <div><label className="input-label">Groom's Father's Name</label><input className="input" value={form.groomFatherName} onChange={e => set('groomFatherName', e.target.value)} placeholder="J.M Jayarathna" /></div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-              <div><label className="input-label">Bride's Father's Phone</label><input className="input" type="tel" value={form.brideFatherPhone} onChange={e => set('brideFatherPhone', e.target.value)} placeholder="0773460699" /></div>
-              <div><label className="input-label">Groom's Father's Phone</label><input className="input" type="tel" value={form.groomFatherPhone} onChange={e => set('groomFatherPhone', e.target.value)} placeholder="0779831707" /></div>
-            </div>
             <div><label className="input-label">Love Story (shown on invite page)</label><textarea className="input" rows={5} value={form.loveStory} onChange={e => set('loveStory', e.target.value)} placeholder="How did you two meet? Share your story…" style={{ resize: 'vertical' }} /></div>
+          </div>
+        )}
+
+        {/* PDF TAB */}
+        {tab === 'pdf' && (
+          <div className="card" style={{ display: 'grid', gap: '20px' }}>
+            <div style={{ marginBottom: '8px' }}>
+              <h2 style={{ fontSize: '16px', fontWeight: 600, margin: '0 0 4px' }}>PDF Invitation Settings</h2>
+              <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>Configure the appearance and details for the downloadable PDF invitation.</p>
+            </div>
+
+            {/* Logo Upload */}
+            <div>
+              <label className="input-label">Custom Logo (Optional)</label>
+              {(localPreviews['logo'] || wedding?.pdfLogoUrl) && !brokenPreviews.logo ? (
+                <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginTop: '8px' }}>
+                  <img src={localPreviews['logo'] || wedding?.pdfLogoUrl!} alt="Logo" style={{ width: '80px', height: '80px', objectFit: 'contain', background: '#f5f5f5', borderRadius: '8px', padding: '8px' }} onError={() => setBrokenPreviews(b => ({ ...b, logo: true }))} />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer' }}>
+                      <Upload size={14} style={{ marginRight: '6px' }} /> Replace
+                      <input type="file" accept="image/png,image/svg+xml" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload('logo', f); }} />
+                    </label>
+                    <button type="button" className="btn btn-danger btn-icon" onClick={() => clearPhoto('logo')}><X size={14} /></button>
+                  </div>
+                </div>
+              ) : (
+                <label style={{ display: 'inline-block', marginTop: '8px', cursor: 'pointer' }}>
+                  <div style={{ width: '120px', height: '120px', border: '2px dashed var(--color-border-2)', borderRadius: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--color-surface-2)', color: 'var(--color-text-muted)' }}>
+                    <Upload size={24} style={{ marginBottom: '8px', opacity: 0.5 }} />
+                    <span style={{ fontSize: '12px', fontWeight: 500 }}>Upload Logo</span>
+                  </div>
+                  <input type="file" accept="image/png,image/svg+xml" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload('logo', f); }} />
+                </label>
+              )}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <div>
+                <label className="input-label">Bride's Father's Name *</label>
+                <input className="input" value={form.brideFatherName} onChange={e => set('brideFatherName', e.target.value)} placeholder="Shirantha Dasanayake" required />
+              </div>
+              <div>
+                <label className="input-label">Bride's Father's Phone *</label>
+                <input className="input" type="tel" value={form.brideFatherPhone} onChange={e => set('brideFatherPhone', e.target.value)} placeholder="0773460699" required />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <div>
+                <label className="input-label">Groom's Father's Name *</label>
+                <input className="input" value={form.groomFatherName} onChange={e => set('groomFatherName', e.target.value)} placeholder="J.M Jayarathna" required />
+              </div>
+              <div>
+                <label className="input-label">Groom's Father's Phone *</label>
+                <input className="input" type="tel" value={form.groomFatherPhone} onChange={e => set('groomFatherPhone', e.target.value)} placeholder="0779831707" required />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <div>
+                <label className="input-label">Font Style (Names) *</label>
+                <select className="input" value={form.pdfFont} onChange={e => set('pdfFont', e.target.value)} required>
+                  {['Great Vibes', 'Alex Brush', 'Dancing Script', 'Pinyon Script'].map(f => (
+                    <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="input-label">Wedding Day *</label>
+                <select className="input" value={form.pdfWeddingDay} onChange={e => set('pdfWeddingDay', e.target.value)} required>
+                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <div>
+                <label className="input-label">Ceremony Name *</label>
+                <input className="input" value={form.pdfCeremonyName} onChange={e => set('pdfCeremonyName', e.target.value)} placeholder="Poruwa Ceremony" required />
+              </div>
+              <div>
+                <label className="input-label">Ceremony Time *</label>
+                <input className="input" type="time" value={form.pdfCeremonyTime} onChange={e => set('pdfCeremonyTime', e.target.value)} required />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' }}>
+              <div>
+                <label className="input-label">Event Start Time *</label>
+                <input className="input" type="time" value={form.pdfStartTime} onChange={e => set('pdfStartTime', e.target.value)} required />
+              </div>
+              <div>
+                <label className="input-label">Event End Time *</label>
+                <input className="input" type="time" value={form.pdfEndTime} onChange={e => set('pdfEndTime', e.target.value)} required />
+              </div>
+              <div>
+                <label className="input-label">RSVP Deadline *</label>
+                <input className="input" type="date" value={form.rsvpDeadline} onChange={e => set('rsvpDeadline', e.target.value)} required />
+              </div>
+            </div>
           </div>
         )}
 

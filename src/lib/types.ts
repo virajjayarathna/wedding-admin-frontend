@@ -73,6 +73,14 @@ export interface WeddingDetails {
   primaryColor: string;
   accentColor: string;
   fontFamily: string;
+  pdfLogoUrl?: string | null;
+  pdfFont?: string | null;
+  pdfWeddingDay?: string | null;
+  pdfStartTime?: string | null;
+  pdfEndTime?: string | null;
+  pdfCeremonyName?: string | null;
+  pdfCeremonyTime?: string | null;
+  rsvpDeadline?: string | null;
   isPublished: boolean;
   _count?: { guests: number };
 }
