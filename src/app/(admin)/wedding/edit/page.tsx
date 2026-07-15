@@ -46,7 +46,8 @@ function WeddingEditorContent() {
   const [form, setForm] = useState({
     brideName: '', groomName: '', weddingDate: '', weddingSlug: '',
     loveStory: '', venueName: '', venueAddress: '', venueMapsUrl: '',
-    bridePhone: '', groomPhone: '', musicUrl: '', musicType: 'SPOTIFY' as 'SPOTIFY' | 'UPLOAD',
+    bridePhone: '', groomPhone: '', brideFatherName: '', brideFatherPhone: '',
+    groomFatherName: '', groomFatherPhone: '', musicUrl: '', musicType: 'SPOTIFY' as 'SPOTIFY' | 'UPLOAD',
     primaryColor: '#c9a84c', accentColor: '#f0d080', fontFamily: 'Inter',
   });
   // Local object URLs for image preview (avoids depending on S3 public access)
@@ -68,7 +69,8 @@ function WeddingEditorContent() {
             weddingSlug: w.weddingSlug, loveStory: w.loveStory || '',
             venueName: w.venueName || '', venueAddress: w.venueAddress || '',
             venueMapsUrl: w.venueMapsUrl || '', bridePhone: w.bridePhone || '',
-            groomPhone: w.groomPhone || '', musicUrl: w.musicUrl || '',
+            groomPhone: w.groomPhone || '', brideFatherName: w.brideFatherName || '', brideFatherPhone: w.brideFatherPhone || '',
+            groomFatherName: w.groomFatherName || '', groomFatherPhone: w.groomFatherPhone || '', musicUrl: w.musicUrl || '',
             musicType: w.musicType || 'SPOTIFY',
             primaryColor: w.primaryColor || '#c9a84c',
             accentColor: w.accentColor || '#f0d080', fontFamily: w.fontFamily || 'Inter',
@@ -162,6 +164,74 @@ function WeddingEditorContent() {
     setWedding(w => w ? { ...w, [field]: null } : w);
   }
 
+  async function handleAudioUpload(file: File) {
+    if (!file) return;
+    const toastId = toast.loading('Uploading audio...');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('purpose', 'audio');
+      const { data } = await api.post('/admin/wedding/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 120_000,
+      });
+      const { publicUrl } = data.data;
+      set('musicUrl', publicUrl);
+      setWedding(w => w ? { ...w, musicUrl: publicUrl, musicType: 'UPLOAD' } : w);
+      toast.success('Audio uploaded!', { id: toastId });
+    } catch (e) {
+      toast.error(getErrorMessage(e), { id: toastId });
+    }
+  }
+
+  async function handleAudioDelete() {
+    if (!wedding?.musicUrl) return;
+    const toastId = toast.loading('Deleting audio...');
+    try {
+      await api.delete('/admin/wedding/music');
+      set('musicUrl', '');
+      set('musicType', 'SPOTIFY');
+      setWedding(w => w ? { ...w, musicUrl: null, musicType: 'SPOTIFY' } : w);
+      toast.success('Audio deleted!', { id: toastId });
+    } catch (e) {
+      toast.error(getErrorMessage(e), { id: toastId });
+    }
+  }
+
+  async function handleGalleryUpload(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    const toastId = toast.loading(`Uploading ${files.length} photo(s)...`);
+    try {
+      const newUrls: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const formData = new FormData();
+        formData.append('file', files[i]);
+        formData.append('purpose', 'gallery');
+        const { data } = await api.post('/admin/wedding/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 120_000,
+        });
+        newUrls.push(data.data.publicUrl);
+      }
+      setWedding(w => w ? { ...w, galleryUrls: [...(w.galleryUrls || []), ...newUrls] } : w);
+      toast.success('Gallery updated!', { id: toastId });
+    } catch (e) {
+      toast.error(getErrorMessage(e), { id: toastId });
+    }
+  }
+
+  async function handleGalleryDelete(url: string) {
+    const toastId = toast.loading('Deleting photo...');
+    try {
+      const key = encodeURIComponent(url.split('.com/')[1] || url.substring(url.lastIndexOf('/') + 1));
+      await api.delete(`/admin/wedding/gallery/${key}`);
+      setWedding(w => w ? { ...w, galleryUrls: (w.galleryUrls || []).filter(u => u !== url) } : w);
+      toast.success('Photo deleted!', { id: toastId });
+    } catch (e) {
+      toast.error(getErrorMessage(e), { id: toastId });
+    }
+  }
+
   if (loading) return <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)' }}>Loading…</div>;
 
   const guestBaseUrl = process.env.NEXT_PUBLIC_GUEST_BASE_URL || 'http://localhost:3001';
@@ -175,7 +245,7 @@ function WeddingEditorContent() {
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           {wedding && (
-            <a href={`${guestBaseUrl}/invite`} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm">Preview →</a>
+            <a href={`${guestBaseUrl}/invite/${wedding.weddingSlug}`} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm">Preview →</a>
           )}
           {wedding && (
             <button className={`btn btn-sm ${wedding.isPublished ? 'btn-secondary' : 'btn-primary'}`} onClick={handlePublishToggle} disabled={publishing}>
@@ -192,8 +262,9 @@ function WeddingEditorContent() {
 
       {/* Slug Display */}
       {wedding?.weddingSlug && (
-        <div style={{ marginBottom: '20px', padding: '12px 16px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '10px', fontSize: '13px', color: 'var(--color-text-secondary)' }}>
-          🔗 Invitation link: <code style={{ color: 'var(--color-accent)', marginLeft: '6px', fontWeight: 500 }}>{guestBaseUrl}/invite/{wedding.weddingSlug}</code>
+        <div style={{ marginBottom: '20px', padding: '12px 16px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '10px', fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: '1.5' }}>
+          💡 <strong>Tip:</strong> This is your <strong>preview link</strong>. To invite guests, go to the <a href="/guests" style={{ color: 'var(--color-accent)', textDecoration: 'underline' }}>Guests</a> tab to generate unique RSVP links.<br />
+          🔗 Preview link: <code style={{ color: 'var(--color-accent)', marginLeft: '6px', fontWeight: 500 }}>{guestBaseUrl}/invite/{wedding.weddingSlug}</code>
         </div>
       )}
 
@@ -225,6 +296,14 @@ function WeddingEditorContent() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
               <div><label className="input-label">Bride's Phone</label><input className="input" type="tel" value={form.bridePhone} onChange={e => set('bridePhone', e.target.value)} placeholder="+94771234567" /></div>
               <div><label className="input-label">Groom's Phone</label><input className="input" type="tel" value={form.groomPhone} onChange={e => set('groomPhone', e.target.value)} placeholder="+94771234567" /></div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <div><label className="input-label">Bride's Father's Name</label><input className="input" value={form.brideFatherName} onChange={e => set('brideFatherName', e.target.value)} placeholder="Shirantha Dasanayake" /></div>
+              <div><label className="input-label">Groom's Father's Name</label><input className="input" value={form.groomFatherName} onChange={e => set('groomFatherName', e.target.value)} placeholder="J.M Jayarathna" /></div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <div><label className="input-label">Bride's Father's Phone</label><input className="input" type="tel" value={form.brideFatherPhone} onChange={e => set('brideFatherPhone', e.target.value)} placeholder="0773460699" /></div>
+              <div><label className="input-label">Groom's Father's Phone</label><input className="input" type="tel" value={form.groomFatherPhone} onChange={e => set('groomFatherPhone', e.target.value)} placeholder="0779831707" /></div>
             </div>
             <div><label className="input-label">Love Story (shown on invite page)</label><textarea className="input" rows={5} value={form.loveStory} onChange={e => set('loveStory', e.target.value)} placeholder="How did you two meet? Share your story…" style={{ resize: 'vertical' }} /></div>
           </div>
@@ -340,10 +419,61 @@ function WeddingEditorContent() {
               <h2 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '16px' }}>Background Music</h2>
               <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
                 {(['SPOTIFY', 'UPLOAD'] as const).map(t => (
-                  <button key={t} type="button" className={`btn btn-sm ${form.musicType === t ? 'btn-primary' : 'btn-secondary'}`} onClick={() => set('musicType', t)}>{t}</button>
+                  <button key={t} type="button" className={`btn btn-sm ${form.musicType === t ? 'btn-primary' : 'btn-secondary'}`} onClick={() => set('musicType', t)}>{t === 'SPOTIFY' ? 'Spotify URL' : 'Upload MP3'}</button>
                 ))}
               </div>
-              <input className="input" value={form.musicUrl} onChange={e => set('musicUrl', e.target.value)} placeholder={form.musicType === 'SPOTIFY' ? 'https://open.spotify.com/track/…' : 'https://s3-wedding-app.s3.us-east-1.amazonaws.com/…'} />
+              
+              {form.musicType === 'SPOTIFY' ? (
+                <input className="input" value={form.musicUrl} onChange={e => set('musicUrl', e.target.value)} placeholder="https://open.spotify.com/track/…" />
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {form.musicUrl ? (
+                    <>
+                      <audio src={form.musicUrl} controls style={{ height: '40px', flex: 1 }} />
+                      <button type="button" className="btn btn-danger btn-icon" onClick={handleAudioDelete} title="Remove Audio">
+                        <X size={16} />
+                      </button>
+                    </>
+                  ) : (
+                    <label className="btn btn-secondary" style={{ cursor: 'pointer', display: 'inline-flex', gap: '6px' }}>
+                      <Upload size={16} /> Select MP3 File
+                      <input type="file" accept="audio/mpeg,audio/ogg" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleAudioUpload(f); }} />
+                    </label>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* GALLERY SECTION */}
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div>
+                  <h2 style={{ fontSize: '15px', fontWeight: 600, margin: 0 }}>Love Story Gallery</h2>
+                  <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--color-text-muted)' }}>Upload photos for the flip-book gallery</p>
+                </div>
+                <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', gap: '6px' }}>
+                  <Upload size={13} /> Add Photos
+                  <input type="file" multiple accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
+                    onChange={e => { handleGalleryUpload(e.target.files); }} />
+                </label>
+              </div>
+
+              {wedding?.galleryUrls && wedding.galleryUrls.length > 0 ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '12px' }}>
+                  {wedding.galleryUrls.map((url, i) => (
+                    <div key={url} style={{ position: 'relative', aspectRatio: '1', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
+                      <img src={url} alt={`Gallery photo ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <button type="button" onClick={() => handleGalleryDelete(url)} style={{ position: 'absolute', top: '4px', right: '4px', background: 'rgba(0,0,0,0.6)', color: 'white', border: 'none', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ padding: '30px', textAlign: 'center', background: 'var(--color-surface-2)', borderRadius: '8px', border: '1px dashed var(--color-border-2)' }}>
+                  <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No gallery photos uploaded yet.</p>
+                </div>
+              )}
             </div>
           </div>
         )}

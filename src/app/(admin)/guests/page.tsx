@@ -17,7 +17,7 @@ function RsvpBadge({ status }: { status: RsvpStatus }) {
 
 interface AddGuestModalProps { onClose: () => void; onSaved: () => void; }
 function AddGuestModal({ onClose, onSaved }: AddGuestModalProps) {
-  const [form, setForm] = useState({ title: 'MR' as GuestTitle, firstName: '', lastName: '', phone: '', maxAttendants: 1 });
+  const [form, setForm] = useState({ title: 'MR' as GuestTitle, firstName: '', lastName: '', phone: '', maxAttendants: 1, brideRsvpContact: 'BRIDE', groomRsvpContact: 'GROOM' });
   const [loading, setLoading] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -50,7 +50,27 @@ function AddGuestModal({ onClose, onSaved }: AddGuestModalProps) {
             <div><label className="input-label">First Name *</label><input className="input" value={form.firstName} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))} required /></div>
             <div><label className="input-label">Last Name *</label><input className="input" value={form.lastName} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))} required /></div>
           </div>
-          <div><label className="input-label">Phone (for WhatsApp)</label><input className="input" type="tel" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="+94771234567" /></div>
+          <div>
+            <label className="input-label">Phone (for WhatsApp)</label>
+            <input className="input" type="tel" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="+94771234567" style={{ marginBottom: '12px' }} />
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <label className="input-label">Bride's RSVP Contact</label>
+                <select className="input" value={form.brideRsvpContact} onChange={e => setForm(f => ({ ...f, brideRsvpContact: e.target.value }))}>
+                  <option value="BRIDE">Bride</option>
+                  <option value="BRIDE_FATHER">Bride's Father</option>
+                </select>
+              </div>
+              <div>
+                <label className="input-label">Groom's RSVP Contact</label>
+                <select className="input" value={form.groomRsvpContact} onChange={e => setForm(f => ({ ...f, groomRsvpContact: e.target.value }))}>
+                  <option value="GROOM">Groom</option>
+                  <option value="GROOM_FATHER">Groom's Father</option>
+                </select>
+              </div>
+            </div>
+          </div>
           <div>
             <label className="input-label">Max Attendants</label>
             <input className="input" type="number" min={1} max={20} value={form.maxAttendants} onChange={e => setForm(f => ({ ...f, maxAttendants: parseInt(e.target.value) }))} style={{ maxWidth: '100px' }} />

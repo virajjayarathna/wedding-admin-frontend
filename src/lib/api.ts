@@ -23,15 +23,21 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      Cookies.remove('auth_token');
-      Cookies.remove('auth_user');
       if (typeof window !== 'undefined') {
-        // Detect which portal based on current path
         const path = window.location.pathname;
-        if (path.startsWith('/dashboard') || path.startsWith('/wedding') || path.startsWith('/guests')) {
-          window.location.href = '/login';
-        } else {
-          window.location.href = '/superadmin/login';
+        const isOnLoginPage = path === '/login' || path === '/superadmin/login';
+
+        // Only redirect if we're NOT already on a login page.
+        // If we are on the login page, let the error propagate so the
+        // catch block can show the toast (wrong email/password etc.).
+        if (!isOnLoginPage) {
+          Cookies.remove('auth_token');
+          Cookies.remove('auth_user');
+          if (path.startsWith('/dashboard') || path.startsWith('/wedding') || path.startsWith('/guests')) {
+            window.location.href = '/login';
+          } else {
+            window.location.href = '/superadmin/login';
+          }
         }
       }
     }
