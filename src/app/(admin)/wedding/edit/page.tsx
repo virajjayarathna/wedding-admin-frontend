@@ -6,7 +6,17 @@ import toast from 'react-hot-toast';
 import api, { getErrorMessage } from '@/lib/api';
 import type { WeddingDetails } from '@/lib/types';
 
-type Tab = 'basics' | 'media' | 'venue' | 'timeline' | 'style' | 'pdf';
+type Tab = 'basics' | 'media' | 'venue_rsvp' | 'timeline' | 'style' | 'pdf';
+
+const TAB_VALUES: Tab[] = ['basics', 'media', 'venue_rsvp', 'timeline', 'style', 'pdf'];
+const MAX_RSVP_CONTACTS = 8;
+
+interface RsvpContactForm { id: string; name: string; phone: string; }
+
+function makeContactId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+  return `rc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 const COLOR_PRESETS = [
   { primary: '#c9a84c', accent: '#f0d080', label: 'Gold' },
@@ -23,7 +33,7 @@ function WeddingEditorContent() {
   
   const tabParam = searchParams.get('tab') as Tab | null;
   const [tab, setTabState] = useState<Tab>(
-    (tabParam && ['basics', 'media', 'venue', 'timeline', 'style', 'pdf'].includes(tabParam)) ? tabParam as Tab : 'basics'
+    (tabParam && TAB_VALUES.includes(tabParam)) ? tabParam as Tab : 'basics'
   );
 
   const setTab = (newTab: Tab) => {
@@ -34,7 +44,7 @@ function WeddingEditorContent() {
   };
 
   useEffect(() => {
-    if (tabParam && ['basics', 'media', 'venue', 'timeline', 'style', 'pdf'].includes(tabParam) && tabParam !== tab) {
+    if (tabParam && TAB_VALUES.includes(tabParam) && tabParam !== tab) {
       setTabState(tabParam);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -52,6 +62,8 @@ function WeddingEditorContent() {
     pdfFont: 'Great Vibes', pdfWeddingDay: 'Saturday', pdfStartTime: '15:00', pdfEndTime: '23:00',
     pdfCeremonyName: 'The Ceremony', pdfCeremonyTime: '16:00', rsvpDeadline: '',
   });
+  // RSVP point-of-contact list (name + phone pairs, max 8) — configured in the Venue & RSVP tab
+  const [rsvpContacts, setRsvpContacts] = useState<RsvpContactForm[]>([]);
   // Local object URLs for image preview (avoids depending on S3 public access)
   const [localPreviews, setLocalPreviews] = useState<{ cover?: string; hero?: string; logo?: string }>({});
   // Track which previews failed to load (404 or CORS error) so we can fall back to upload zone
@@ -81,6 +93,7 @@ function WeddingEditorContent() {
             pdfCeremonyName: w.pdfCeremonyName || 'The Ceremony', pdfCeremonyTime: w.pdfCeremonyTime || '16:00',
             rsvpDeadline: w.rsvpDeadline?.substring(0, 10) || '',
           });
+          setRsvpContacts(Array.isArray(w.rsvpContacts) ? w.rsvpContacts : []);
           // Pre-populate previews with existing S3 URLs so prior uploads show as thumbnails
           setLocalPreviews({
             cover: w.coverPhotoUrl || undefined,
@@ -102,6 +115,14 @@ function WeddingEditorContent() {
       return;
     }
 
+    // Only persist RSVP contact rows that have both a name and a phone filled in
+    const cleanRsvpContacts = rsvpContacts.filter(c => c.name.trim() && c.phone.trim());
+    if (cleanRsvpContacts.length > MAX_RSVP_CONTACTS) {
+      setTab('venue_rsvp');
+      toast.error(`You can add up to ${MAX_RSVP_CONTACTS} RSVP contacts.`);
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {
@@ -111,6 +132,7 @@ function WeddingEditorContent() {
         musicUrl: form.musicUrl || undefined,
         venueMapsUrl: form.venueMapsUrl || undefined,
         loveStory: form.loveStory || undefined,
+        rsvpContacts: cleanRsvpContacts,
       };
       const { data } = await api.put('/admin/wedding', payload);
       setWedding(data.data);
@@ -285,7 +307,7 @@ function WeddingEditorContent() {
 
       {/* Tab Bar */}
       <div className="tab-bar" style={{ marginBottom: '24px' }}>
-        {([['basics', 'Basics'], ['media', 'Photos'], ['venue', 'Venue'], ['timeline', 'Timeline'], ['style', 'Style'], ['pdf', 'PDF Invite']] as [Tab, string][]).map(([t, label]) => (
+        {([['basics', 'Basics'], ['media', 'Photos'], ['venue_rsvp', 'Venue & RSVP'], ['timeline', 'Timeline'], ['style', 'Style'], ['pdf', 'PDF Invite']] as [Tab, string][]).map(([t, label]) => (
           <button key={t} type="button" className={`tab-btn ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>{label}</button>
         ))}
       </div>
@@ -333,7 +355,7 @@ function WeddingEditorContent() {
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer' }}>
                       <Upload size={14} style={{ marginRight: '6px' }} /> Replace
-                      <input type="file" accept="image/png,image/svg+xml" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload('logo', f); }} />
+                      <input type="file" accept="image/png,image/jpeg,image/svg+xml" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload('logo', f); }} />
                     </label>
                     <button type="button" className="btn btn-danger btn-icon" onClick={() => clearPhoto('logo')}><X size={14} /></button>
                   </div>
@@ -344,7 +366,7 @@ function WeddingEditorContent() {
                     <Upload size={24} style={{ marginBottom: '8px', opacity: 0.5 }} />
                     <span style={{ fontSize: '12px', fontWeight: 500 }}>Upload Logo</span>
                   </div>
-                  <input type="file" accept="image/png,image/svg+xml" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload('logo', f); }} />
+                  <input type="file" accept="image/png,image/jpeg,image/svg+xml" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload('logo', f); }} />
                 </label>
               )}
             </div>
@@ -587,12 +609,77 @@ function WeddingEditorContent() {
           </div>
         )}
 
-        {/* VENUE TAB */}
-        {tab === 'venue' && (
-          <div className="card" style={{ display: 'grid', gap: '16px' }}>
-            <div><label className="input-label">Venue Name</label><input className="input" value={form.venueName} onChange={e => set('venueName', e.target.value)} placeholder="The Grand Ballroom" /></div>
-            <div><label className="input-label">Venue Address</label><textarea className="input" rows={3} value={form.venueAddress} onChange={e => set('venueAddress', e.target.value)} placeholder="123 Main Street, Colombo 03, Sri Lanka" style={{ resize: 'vertical' }} /></div>
-            <div><label className="input-label">Google Maps Link</label><input className="input" type="url" value={form.venueMapsUrl} onChange={e => set('venueMapsUrl', e.target.value)} placeholder="https://maps.google.com/…" /></div>
+        {/* VENUE & RSVP TAB */}
+        {tab === 'venue_rsvp' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div className="card" style={{ display: 'grid', gap: '16px' }}>
+              <div><label className="input-label">Venue Name</label><input className="input" value={form.venueName} onChange={e => set('venueName', e.target.value)} placeholder="The Grand Ballroom" /></div>
+              <div><label className="input-label">Venue Address</label><textarea className="input" rows={3} value={form.venueAddress} onChange={e => set('venueAddress', e.target.value)} placeholder="123 Main Street, Colombo 03, Sri Lanka" style={{ resize: 'vertical' }} /></div>
+              <div><label className="input-label">Google Maps Link</label><input className="input" type="url" value={form.venueMapsUrl} onChange={e => set('venueMapsUrl', e.target.value)} placeholder="https://maps.google.com/…" /></div>
+            </div>
+
+            <div className="card" style={{ display: 'grid', gap: '14px' }}>
+              <div>
+                <h2 style={{ fontSize: '15px', fontWeight: 600, margin: '0 0 4px' }}>RSVP Contacts</h2>
+                <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: 0 }}>
+                  Add the people guests can reach out to about their RSVP (up to {MAX_RSVP_CONTACTS}). On the Guests page you can assign up to two of these to each guest.
+                </p>
+              </div>
+
+              {rsvpContacts.length === 0 ? (
+                <div style={{ padding: '20px', textAlign: 'center', background: 'var(--color-surface-2)', borderRadius: '8px', border: '1px dashed var(--color-border-2)' }}>
+                  <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No RSVP contacts added yet.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {rsvpContacts.map((contact, idx) => (
+                    <div key={contact.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '10px', alignItems: 'end' }}>
+                      <div>
+                        {idx === 0 && <label className="input-label">Name</label>}
+                        <input
+                          className="input"
+                          value={contact.name}
+                          onChange={e => setRsvpContacts(list => list.map(c => c.id === contact.id ? { ...c, name: e.target.value } : c))}
+                          placeholder="e.g. Hiruni Dasanayake"
+                        />
+                      </div>
+                      <div>
+                        {idx === 0 && <label className="input-label">Contact Number</label>}
+                        <input
+                          className="input"
+                          type="tel"
+                          value={contact.phone}
+                          onChange={e => setRsvpContacts(list => list.map(c => c.id === contact.id ? { ...c, phone: e.target.value } : c))}
+                          placeholder="+94771234567"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-danger btn-icon"
+                        onClick={() => setRsvpContacts(list => list.filter(c => c.id !== contact.id))}
+                        title="Remove contact"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled={rsvpContacts.length >= MAX_RSVP_CONTACTS}
+                  onClick={() => setRsvpContacts(list => list.length >= MAX_RSVP_CONTACTS ? list : [...list, { id: makeContactId(), name: '', phone: '' }])}
+                >
+                  + Add Contact
+                </button>
+                {rsvpContacts.length >= MAX_RSVP_CONTACTS && (
+                  <span style={{ marginLeft: '10px', fontSize: '12px', color: 'var(--color-text-muted)' }}>Maximum of {MAX_RSVP_CONTACTS} reached</span>
+                )}
+              </div>
+            </div>
           </div>
         )}
 

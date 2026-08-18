@@ -4,7 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { Plus, Search, Trash2, MessageCircle, RefreshCw, Download, Upload, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api, { getErrorMessage } from '@/lib/api';
-import type { Guest, GuestTitle, RsvpStatus, WhatsAppLinkData } from '@/lib/types';
+import type { Guest, GuestTitle, RsvpContact, RsvpStatus, WhatsAppLinkData } from '@/lib/types';
 
 const TITLES: GuestTitle[] = ['MR', 'MRS', 'MS', 'DR', 'FAMILY', 'MASTER'];
 const TITLE_LABELS: Record<string, string> = { MR:'Mr.', MRS:'Mrs.', MS:'Ms.', DR:'Dr.', FAMILY:'Family', MASTER:'Master' };
@@ -15,16 +15,20 @@ function RsvpBadge({ status }: { status: RsvpStatus }) {
   return <span className={`badge ${cls[status]}`}>{status}</span>;
 }
 
-interface AddGuestModalProps { onClose: () => void; onSaved: () => void; }
-function AddGuestModal({ onClose, onSaved }: AddGuestModalProps) {
-  const [form, setForm] = useState({ title: 'MR' as GuestTitle, firstName: '', lastName: '', phone: '', maxAttendants: 1, brideRsvpContact: 'BRIDE', groomRsvpContact: 'GROOM' });
+interface AddGuestModalProps { onClose: () => void; onSaved: () => void; rsvpContacts: RsvpContact[]; }
+function AddGuestModal({ onClose, onSaved, rsvpContacts }: AddGuestModalProps) {
+  const [form, setForm] = useState({ title: 'MR' as GuestTitle, firstName: '', lastName: '', phone: '', maxAttendants: 1, firstRsvpContactId: '', secondRsvpContactId: '' });
   const [loading, setLoading] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     try {
-      await api.post('/admin/guests', form);
+      await api.post('/admin/guests', {
+        ...form,
+        firstRsvpContactId: form.firstRsvpContactId || undefined,
+        secondRsvpContactId: form.secondRsvpContactId || undefined,
+      });
       toast.success('Guest added!');
       onSaved();
       onClose();
@@ -53,23 +57,33 @@ function AddGuestModal({ onClose, onSaved }: AddGuestModalProps) {
           <div>
             <label className="input-label">Phone (for WhatsApp)</label>
             <input className="input" type="tel" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="+94771234567" style={{ marginBottom: '12px' }} />
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <div>
-                <label className="input-label">Bride's RSVP Contact</label>
-                <select className="input" value={form.brideRsvpContact} onChange={e => setForm(f => ({ ...f, brideRsvpContact: e.target.value }))}>
-                  <option value="BRIDE">Bride</option>
-                  <option value="BRIDE_FATHER">Bride's Father</option>
-                </select>
+
+            {rsvpContacts.length === 0 ? (
+              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: 0 }}>
+                No RSVP contacts configured yet. Add them under Wedding Editor → Venue &amp; RSVP to assign one here.
+              </p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label className="input-label">First RSVP Contact</label>
+                  <select className="input" value={form.firstRsvpContactId} onChange={e => setForm(f => ({ ...f, firstRsvpContactId: e.target.value }))}>
+                    <option value="">None</option>
+                    {rsvpContacts.filter(c => c.id !== form.secondRsvpContactId).map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="input-label">Second RSVP Contact</label>
+                  <select className="input" value={form.secondRsvpContactId} onChange={e => setForm(f => ({ ...f, secondRsvpContactId: e.target.value }))}>
+                    <option value="">None</option>
+                    {rsvpContacts.filter(c => c.id !== form.firstRsvpContactId).map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="input-label">Groom's RSVP Contact</label>
-                <select className="input" value={form.groomRsvpContact} onChange={e => setForm(f => ({ ...f, groomRsvpContact: e.target.value }))}>
-                  <option value="GROOM">Groom</option>
-                  <option value="GROOM_FATHER">Groom's Father</option>
-                </select>
-              </div>
-            </div>
+            )}
           </div>
           <div>
             <label className="input-label">Max Attendants</label>
@@ -120,6 +134,13 @@ export default function GuestsPage() {
   const [showAdd, setShowAdd] = useState(searchParams.get('action') === 'add');
   const [whatsApp, setWhatsApp] = useState<WhatsAppLinkData | null>(null);
   const [csvLoading, setCsvLoading] = useState(false);
+  const [rsvpContacts, setRsvpContacts] = useState<RsvpContact[]>([]);
+
+  useEffect(() => {
+    api.get('/admin/wedding')
+      .then(r => setRsvpContacts(Array.isArray(r.data.data?.rsvpContacts) ? r.data.data.rsvpContacts : []))
+      .catch(() => {});
+  }, []);
 
   const fetchGuests = useCallback(async () => {
     setLoading(true);
@@ -254,7 +275,7 @@ export default function GuestsPage() {
         </table>
       </div>
 
-      {showAdd && <AddGuestModal onClose={() => setShowAdd(false)} onSaved={fetchGuests} />}
+      {showAdd && <AddGuestModal onClose={() => setShowAdd(false)} onSaved={fetchGuests} rsvpContacts={rsvpContacts} />}
       {whatsApp && <WhatsAppModal data={whatsApp} onClose={() => setWhatsApp(null)} />}
     </div>
   );

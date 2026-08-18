@@ -47,6 +47,12 @@ export interface TimelineEvent {
   icon?: string;
 }
 
+export interface RsvpContact {
+  id: string;
+  name: string;
+  phone: string;
+}
+
 export interface WeddingDetails {
   id: string;
   adminId: string;
@@ -67,6 +73,7 @@ export interface WeddingDetails {
   brideFatherPhone?: string | null;
   groomFatherName?: string | null;
   groomFatherPhone?: string | null;
+  rsvpContacts: RsvpContact[];
   timeline: TimelineEvent[];
   musicUrl?: string | null;
   musicType?: MusicType | null;
@@ -100,8 +107,8 @@ export interface Guest {
   dietaryNotes?: string | null;
   notes?: string | null;
   rsvpSubmittedAt?: string | null;
-  brideRsvpContact: 'BRIDE' | 'BRIDE_FATHER';
-  groomRsvpContact: 'GROOM' | 'GROOM_FATHER';
+  firstRsvpContactId?: string | null;
+  secondRsvpContactId?: string | null;
   createdAt: string;
 }
 
