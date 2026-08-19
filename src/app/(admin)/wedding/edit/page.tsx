@@ -18,6 +18,80 @@ function makeContactId(): string {
   return `rc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/** Single-image upload slots and the WeddingDetails column each one writes to. */
+type ImageSlot = 'cover' | 'hero' | 'logo' | 'share';
+
+const IMAGE_SLOT_FIELDS: Record<ImageSlot, 'coverPhotoUrl' | 'heroPhotoUrl' | 'pdfLogoUrl' | 'sharePreviewUrl'> = {
+  cover: 'coverPhotoUrl',
+  hero: 'heroPhotoUrl',
+  logo: 'pdfLogoUrl',
+  share: 'sharePreviewUrl',
+};
+
+const IMAGE_SLOT_LABELS: Record<ImageSlot, string> = {
+  cover: 'cover photo',
+  hero: 'hero photo',
+  logo: 'logo',
+  share: 'link preview image',
+};
+
+// ─── Link preview (og:image) normalisation ───────────────────────────────────
+// WhatsApp, Facebook and Viber fetch the og:image themselves when a link is
+// shared. They are strict in ways that are invisible until it fails: an
+// unedited phone photo (4000x3000, several MB) is simply dropped and the guest
+// sees a text-only card. So rather than trusting whatever the admin picks, we
+// crop and re-encode it to exactly 1200x630 JPEG in the browser before upload —
+// that way the stored file is always something the scrapers will accept.
+const SHARE_W = 1200;
+const SHARE_H = 630;
+const SHARE_MAX_BYTES = 300 * 1024;
+
+function loadImageFile(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("That file couldn't be read as an image.")); };
+    img.src = url;
+  });
+}
+
+/**
+ * Centre-crop `file` to 1200x630 and re-encode as JPEG, stepping the quality
+ * down until it fits under SHARE_MAX_BYTES. Returns the original file only if
+ * the browser refuses to give us a canvas at all.
+ */
+async function normaliseSharePreview(file: File): Promise<File> {
+  const img = await loadImageFile(file);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = SHARE_W;
+  canvas.height = SHARE_H;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return file;
+
+  // White base so transparent PNGs don't come out with black edges.
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, SHARE_W, SHARE_H);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  // Cover-fit: fill the whole 1200x630 frame, cropping the overflowing axis.
+  const scale = Math.max(SHARE_W / img.naturalWidth, SHARE_H / img.naturalHeight);
+  const drawW = img.naturalWidth * scale;
+  const drawH = img.naturalHeight * scale;
+  ctx.drawImage(img, (SHARE_W - drawW) / 2, (SHARE_H - drawH) / 2, drawW, drawH);
+
+  let blob: Blob | null = null;
+  for (let quality = 0.88; quality >= 0.5; quality -= 0.08) {
+    blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+    if (!blob || blob.size <= SHARE_MAX_BYTES) break;
+  }
+  if (!blob) return file;
+
+  return new File([blob], 'link-preview.jpg', { type: 'image/jpeg', lastModified: Date.now() });
+}
+
 const COLOR_PRESETS = [
   { primary: '#c9a84c', accent: '#f0d080', label: 'Gold' },
   { primary: '#e91e8c', accent: '#f48fb1', label: 'Rose' },
@@ -65,9 +139,9 @@ function WeddingEditorContent() {
   // RSVP point-of-contact list (name + phone pairs, max 8) — configured in the Venue & RSVP tab
   const [rsvpContacts, setRsvpContacts] = useState<RsvpContactForm[]>([]);
   // Local object URLs for image preview (avoids depending on S3 public access)
-  const [localPreviews, setLocalPreviews] = useState<{ cover?: string; hero?: string; logo?: string }>({});
+  const [localPreviews, setLocalPreviews] = useState<Partial<Record<ImageSlot, string>>>({});
   // Track which previews failed to load (404 or CORS error) so we can fall back to upload zone
-  const [brokenPreviews, setBrokenPreviews] = useState<{ cover?: boolean; hero?: boolean; logo?: boolean }>({});
+  const [brokenPreviews, setBrokenPreviews] = useState<Partial<Record<ImageSlot, boolean>>>({});
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -99,6 +173,7 @@ function WeddingEditorContent() {
             cover: w.coverPhotoUrl || undefined,
             hero: w.heroPhotoUrl || undefined,
             logo: w.pdfLogoUrl || undefined,
+            share: w.sharePreviewUrl || undefined,
           });
         }
       })
@@ -133,6 +208,10 @@ function WeddingEditorContent() {
         venueMapsUrl: form.venueMapsUrl || undefined,
         loveStory: form.loveStory || undefined,
         rsvpContacts: cleanRsvpContacts,
+        // Sent explicitly so that removing the link preview image and hitting
+        // Save actually clears the column — uploads write it server-side, but
+        // a removal only lives in local state until this PUT carries the null.
+        sharePreviewUrl: wedding?.sharePreviewUrl ?? null,
       };
       const { data } = await api.put('/admin/wedding', payload);
       setWedding(data.data);
@@ -158,19 +237,33 @@ function WeddingEditorContent() {
     }
   }
 
-  async function handlePhotoUpload(purpose: 'cover' | 'hero' | 'logo', file: File) {
+  async function handlePhotoUpload(purpose: ImageSlot, file: File) {
     if (!file) return;
+    const label = IMAGE_SLOT_LABELS[purpose];
+
+    // The link preview slot is cropped and re-encoded to 1200x630 first, so the
+    // thumbnail below shows the exact frame guests will see in WhatsApp.
+    let outgoing = file;
+    if (purpose === 'share') {
+      try {
+        outgoing = await normaliseSharePreview(file);
+      } catch (e) {
+        toast.error(getErrorMessage(e));
+        return;
+      }
+    }
+
     // Show local preview immediately — doesn't depend on S3 public access
-    const localUrl = URL.createObjectURL(file);
+    const localUrl = URL.createObjectURL(outgoing);
     setLocalPreviews(p => ({ ...p, [purpose]: localUrl }));
     // Clear any prior broken-preview flag — blob URLs always load fine
     setBrokenPreviews(b => ({ ...b, [purpose]: false }));
 
-    const toastId = toast.loading(`Uploading ${purpose} photo… 0%`);
+    const toastId = toast.loading(`Uploading ${label}… 0%`);
     try {
       // Send file to backend — backend handles S3 upload server-side (avoids CORS)
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', outgoing);
       formData.append('purpose', purpose);
       const { data } = await api.post('/admin/wedding/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -178,16 +271,19 @@ function WeddingEditorContent() {
         timeout: 120_000,
         onUploadProgress: (e) => {
           const pct = e.total ? Math.round((e.loaded / e.total) * 100) : 0;
-          toast.loading(`Uploading ${purpose} photo… ${pct}%`, { id: toastId });
+          toast.loading(`Uploading ${label}… ${pct}%`, { id: toastId });
         },
       });
       const { publicUrl } = data.data;
       // Update wedding state with the S3 URL (used when page reloads from DB)
-      const field = purpose === 'cover' ? 'coverPhotoUrl' : purpose === 'hero' ? 'heroPhotoUrl' : 'pdfLogoUrl';
+      const field: string = IMAGE_SLOT_FIELDS[purpose];
       setWedding(w => w ? { ...w, [field]: publicUrl } : w);
       // Keep the blob URL in localPreviews — it's already showing and always loads.
       // Switching to the proxy URL here would trigger onError in dev (CORS) and hide the preview.
-      toast.success('Photo uploaded!', { id: toastId });
+      toast.success(
+        purpose === 'share' ? 'Link preview image updated!' : 'Photo uploaded!',
+        { id: toastId }
+      );
     } catch (e) {
       // Revert local preview on error
       setLocalPreviews(p => ({ ...p, [purpose]: undefined }));
@@ -195,9 +291,10 @@ function WeddingEditorContent() {
     }
   }
 
-  function clearPhoto(purpose: 'cover' | 'hero' | 'logo') {
+  function clearPhoto(purpose: ImageSlot) {
     setLocalPreviews(p => ({ ...p, [purpose]: undefined }));
-    const field = purpose === 'cover' ? 'coverPhotoUrl' : purpose === 'hero' ? 'heroPhotoUrl' : 'pdfLogoUrl';
+    setBrokenPreviews(b => ({ ...b, [purpose]: false }));
+    const field: string = IMAGE_SLOT_FIELDS[purpose];
     setWedding(w => w ? { ...w, [field]: null } : w);
   }
 
@@ -272,6 +369,23 @@ function WeddingEditorContent() {
   if (loading) return <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)' }}>Loading…</div>;
 
   const guestBaseUrl = process.env.NEXT_PUBLIC_GUEST_BASE_URL || 'http://localhost:3001';
+
+  // Mirrors the og:title / og:description the invite page emits, so the Media
+  // tab can show an honest preview of the card a guest will receive.
+  const previewTitle = form.brideName && form.groomName
+    ? `${form.brideName} & ${form.groomName}'s Wedding`
+    : 'Wedding Invitation';
+  const previewDateText = form.weddingDate
+    ? new Date(`${form.weddingDate}T00:00:00`).toLocaleDateString('en-US', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+      })
+    : '';
+  const previewDescription = form.brideName && form.groomName
+    ? `You are cordially invited to the wedding of ${form.brideName} & ${form.groomName}${previewDateText ? ` on ${previewDateText}` : ''}. View your invitation and RSVP here.`
+    : 'You are invited to celebrate our special day.';
+  let previewHost = guestBaseUrl;
+  try { previewHost = new URL(guestBaseUrl).host; } catch { /* keep the raw value */ }
+  const sharePreviewSrc = !brokenPreviews.share ? localPreviews.share : undefined;
 
   return (
     <div className="animate-fade-in">
@@ -545,6 +659,114 @@ function WeddingEditorContent() {
                 </div>
               );
             })}
+
+            {/* ── Link preview image (og:image for WhatsApp / Facebook) ── */}
+            <div className="card" style={{ padding: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', gap: '12px' }}>
+                <div>
+                  <h2 style={{ fontSize: '15px', fontWeight: 600, margin: 0 }}>Link Preview Image</h2>
+                  <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                    The thumbnail WhatsApp, Facebook and Viber show when a guest receives their invitation link
+                  </p>
+                </div>
+                {sharePreviewSrc && (
+                  <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                    <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', gap: '6px' }}>
+                      <Upload size={13} /> Replace
+                      <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload('share', f); }} />
+                    </label>
+                    <button type="button" className="btn btn-danger btn-icon" onClick={() => clearPhoto('share')} title="Remove">
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px', alignItems: 'start' }}>
+                {/* Upload / preview */}
+                <div>
+                  {sharePreviewSrc ? (
+                    <div style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', aspectRatio: '1200 / 630', border: '1px solid var(--color-border-2)' }}>
+                      <img
+                        src={sharePreviewSrc}
+                        alt="Link preview"
+                        onError={() => setBrokenPreviews(b => ({ ...b, share: true }))}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      />
+                    </div>
+                  ) : (
+                    <label style={{ cursor: 'pointer', display: 'block' }}>
+                      <div style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                        aspectRatio: '1200 / 630', borderRadius: '10px',
+                        border: '2px dashed var(--color-border-2)', background: 'var(--color-surface-2)',
+                        color: 'var(--color-text-muted)', gap: '10px',
+                      }}>
+                        <div style={{
+                          width: '44px', height: '44px', borderRadius: '50%', background: 'var(--color-surface)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <Upload size={20} style={{ opacity: 0.5 }} />
+                        </div>
+                        <div style={{ textAlign: 'center', padding: '0 16px' }}>
+                          <p style={{ fontSize: '13px', fontWeight: 500, margin: '0 0 4px' }}>Click to upload a preview image</p>
+                          <p style={{ fontSize: '11px', opacity: 0.6, margin: 0 }}>Any JPG, PNG or WebP — cropped to 1200 × 630 automatically</p>
+                        </div>
+                      </div>
+                      <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload('share', f); }} />
+                    </label>
+                  )}
+
+                  <p style={{ margin: '10px 0 0', fontSize: '11px', color: 'var(--color-text-muted)', display: 'flex', gap: '5px' }}>
+                    <span style={{ opacity: 0.5 }}>💡</span>
+                    <span>
+                      Best results with a wide 1200 × 630 image. Anything else is centre-cropped to that shape
+                      and compressed under 300 KB — WhatsApp silently ignores previews larger than that.
+                    </span>
+                  </p>
+                </div>
+
+                {/* WhatsApp-style mock of the resulting card */}
+                <div>
+                  <p style={{ margin: '0 0 8px', fontSize: '11px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>
+                    How guests will see it
+                  </p>
+                  <div style={{ background: '#0b141a', borderRadius: '12px', padding: '14px 12px' }}>
+                    <div style={{ background: '#005c4b', borderRadius: '10px 10px 10px 2px', padding: '4px', maxWidth: '320px', marginLeft: 'auto', boxShadow: '0 1px 2px rgba(0,0,0,0.35)' }}>
+                      <div style={{ background: 'rgba(0,0,0,0.22)', borderRadius: '8px', overflow: 'hidden' }}>
+                        {sharePreviewSrc ? (
+                          <img src={sharePreviewSrc} alt="" style={{ width: '100%', aspectRatio: '1200 / 630', objectFit: 'cover', display: 'block' }} />
+                        ) : (
+                          <div style={{
+                            width: '100%', aspectRatio: '1200 / 630', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)', fontSize: '11px', textAlign: 'center', padding: '0 12px',
+                          }}>
+                            No image yet — guests see a text-only card
+                          </div>
+                        )}
+                        <div style={{ padding: '8px 10px 10px' }}>
+                          <p style={{ margin: 0, fontSize: '12.5px', fontWeight: 600, color: '#e9edef', lineHeight: 1.3 }}>{previewTitle}</p>
+                          <p style={{
+                            margin: '3px 0 0', fontSize: '11.5px', color: 'rgba(233,237,239,0.65)', lineHeight: 1.35,
+                            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                          }}>{previewDescription}</p>
+                          <p style={{ margin: '5px 0 0', fontSize: '11px', color: 'rgba(233,237,239,0.45)' }}>{previewHost}</p>
+                        </div>
+                      </div>
+                      <p style={{ margin: '6px 8px 4px', fontSize: '12px', color: '#e9edef', lineHeight: 1.4, wordBreak: 'break-all' }}>
+                        {guestBaseUrl}/invite/…
+                      </p>
+                    </div>
+                  </div>
+                  <p style={{ margin: '10px 0 0', fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                    WhatsApp caches a preview per link. Guests who were already sent their link may keep seeing
+                    the old card — regenerate that guest&apos;s token to force a fresh one.
+                  </p>
+                </div>
+              </div>
+            </div>
 
             <div className="card">
               <h2 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '16px' }}>Background Music</h2>

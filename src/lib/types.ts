@@ -63,6 +63,11 @@ export interface WeddingDetails {
   loveStory?: string | null;
   coverPhotoUrl?: string | null;
   heroPhotoUrl?: string | null;
+  /**
+   * 1200x630 og:image shown when a guest's invite link is shared on
+   * WhatsApp / Facebook / Viber. Normalised in the browser before upload.
+   */
+  sharePreviewUrl?: string | null;
   galleryUrls: string[];
   venueName?: string | null;
   venueAddress?: string | null;
