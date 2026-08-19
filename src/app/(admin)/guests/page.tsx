@@ -1,7 +1,7 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Plus, Search, Trash2, MessageCircle, RefreshCw, Download, Upload, X } from 'lucide-react';
+import { Plus, Search, Trash2, MessageCircle, RefreshCw, Download, Upload, X, Copy, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api, { getErrorMessage } from '@/lib/api';
 import type { Guest, GuestTitle, RsvpContact, RsvpStatus, WhatsAppLinkData } from '@/lib/types';
@@ -9,6 +9,42 @@ import type { Guest, GuestTitle, RsvpContact, RsvpStatus, WhatsAppLinkData } fro
 const TITLES: GuestTitle[] = ['MR', 'MRS', 'MS', 'DR', 'FAMILY', 'MASTER'];
 const TITLE_LABELS: Record<string, string> = { MR:'Mr.', MRS:'Mrs.', MS:'Ms.', DR:'Dr.', FAMILY:'Family', MASTER:'Master' };
 const RSVP_FILTERS = ['ALL', 'PENDING', 'ATTENDING', 'DECLINING', 'MAYBE'] as const;
+
+/**
+ * Copy text to the clipboard, falling back to a hidden textarea + execCommand.
+ * `navigator.clipboard` is only available in a secure context, so the modern
+ * path silently disappears whenever the admin panel is reached over plain
+ * http:// on a LAN address — which is exactly how it gets used before a domain
+ * is set up. Returns false only if both paths fail, so the caller can tell the
+ * user to select the text manually instead of showing a false success toast.
+ */
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Permission denied or unavailable — fall through to the legacy path.
+  }
+
+  try {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.top = '-1000px';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    textarea.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return ok;
+  } catch {
+    return false;
+  }
+}
 
 function RsvpBadge({ status }: { status: RsvpStatus }) {
   const cls = { ATTENDING:'badge-attending', DECLINING:'badge-declining', PENDING:'badge-pending-rsvp', MAYBE:'badge-maybe' };
@@ -101,6 +137,25 @@ function AddGuestModal({ onClose, onSaved, rsvpContacts }: AddGuestModalProps) {
 
 interface WhatsAppModalProps { data: WhatsAppLinkData; onClose: () => void; }
 function WhatsAppModal({ data, onClose }: WhatsAppModalProps) {
+  const [copied, setCopied] = useState(false);
+  const copyResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (copyResetTimer.current) clearTimeout(copyResetTimer.current);
+  }, []);
+
+  async function handleCopyMessage() {
+    const ok = await copyToClipboard(data.message);
+    if (!ok) {
+      toast.error('Clipboard blocked by the browser — select the message above and copy it manually.');
+      return;
+    }
+    setCopied(true);
+    toast.success('Message copied — paste it into the WhatsApp chat');
+    if (copyResetTimer.current) clearTimeout(copyResetTimer.current);
+    copyResetTimer.current = setTimeout(() => setCopied(false), 2000);
+  }
+
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal">
@@ -110,14 +165,21 @@ function WhatsAppModal({ data, onClose }: WhatsAppModalProps) {
         </div>
         <p style={{ color: 'var(--color-text-secondary)', fontSize: '14px', marginBottom: '12px' }}>Invite link for <strong>{data.guestName}</strong>:</p>
         <div style={{ padding: '10px 14px', background: 'var(--color-surface-2)', borderRadius: '8px', fontSize: '13px', wordBreak: 'break-all', color: 'var(--color-accent)', marginBottom: '16px' }}>{data.inviteUrl}</div>
-        <div style={{ padding: '12px 14px', background: 'var(--color-surface-2)', borderRadius: '8px', fontSize: '13px', lineHeight: '1.6', whiteSpace: 'pre-wrap', color: 'var(--color-text-secondary)', maxHeight: '200px', overflow: 'auto', marginBottom: '16px' }}>{data.message}</div>
+        <div style={{ padding: '12px 14px', background: 'var(--color-surface-2)', borderRadius: '8px', fontSize: '13px', lineHeight: '1.6', whiteSpace: 'pre-wrap', color: 'var(--color-text-secondary)', maxHeight: '200px', overflow: 'auto', marginBottom: '10px' }}>{data.message}</div>
+        <p style={{ margin: '0 0 16px', fontSize: '11.5px', lineHeight: 1.55, color: 'var(--color-text-muted)' }}>
+          Copy this and paste it into the guest&apos;s WhatsApp chat. The preview card — photo,
+          couple names and date — is built by WhatsApp from the link itself, so it appears above
+          the message on its own once you paste. Give it a second to load before you hit send.
+        </p>
         <div style={{ display: 'flex', gap: '10px' }}>
+          <button type="button" className="btn btn-primary" style={{ flex: 1 }} onClick={handleCopyMessage}>
+            {copied ? <><Check size={16} /> Copied</> : <><Copy size={16} /> Copy Message</>}
+          </button>
           {data.whatsappUrl && (
-            <a href={data.whatsappUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ flex: 1 }}>
+            <a href={data.whatsappUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary">
               <MessageCircle size={16} /> Open WhatsApp
             </a>
           )}
-          <button className="btn btn-secondary" onClick={() => { navigator.clipboard.writeText(data.inviteUrl); toast.success('Link copied!'); }}>Copy Link</button>
         </div>
       </div>
     </div>
