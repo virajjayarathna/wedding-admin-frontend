@@ -5,6 +5,7 @@ import { Globe, EyeOff, Upload, CheckCircle, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api, { getErrorMessage } from '@/lib/api';
 import type { WeddingDetails } from '@/lib/types';
+import ThemeStudio, { type ThemeFormState } from '@/components/ThemeStudio';
 
 type Tab = 'basics' | 'media' | 'venue_rsvp' | 'timeline' | 'style' | 'pdf';
 
@@ -92,14 +93,6 @@ async function normaliseSharePreview(file: File): Promise<File> {
   return new File([blob], 'link-preview.jpg', { type: 'image/jpeg', lastModified: Date.now() });
 }
 
-const COLOR_PRESETS = [
-  { primary: '#c9a84c', accent: '#f0d080', label: 'Gold' },
-  { primary: '#e91e8c', accent: '#f48fb1', label: 'Rose' },
-  { primary: '#7c3aed', accent: '#a78bfa', label: 'Violet' },
-  { primary: '#0ea5e9', accent: '#7dd3fc', label: 'Sky' },
-  { primary: '#10b981', accent: '#6ee7b7', label: 'Emerald' },
-];
-
 function WeddingEditorContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -132,7 +125,12 @@ function WeddingEditorContent() {
     loveStory: '', venueName: '', venueAddress: '', venueMapsUrl: '',
     bridePhone: '', groomPhone: '', brideFatherName: '', brideFatherPhone: '',
     groomFatherName: '', groomFatherPhone: '', musicUrl: '', musicType: 'SPOTIFY' as 'SPOTIFY' | 'UPLOAD',
-    primaryColor: '#c9a84c', accentColor: '#f0d080', fontFamily: 'Inter',
+    // Theme. Empty string means "no override — inherit from the preset", which
+    // is what ThemeStudio renders as "From theme" and saves as null.
+    themePreset: 'classic-gold',
+    primaryColor: '', accentColor: '', bgColor: '', surfaceColor: '',
+    cardColor: '', textColor: '', mutedColor: '',
+    fontFamily: '', bodyFont: '',
     pdfFont: 'Great Vibes', pdfWeddingDay: 'Saturday', pdfStartTime: '15:00', pdfEndTime: '23:00',
     pdfCeremonyName: 'The Ceremony', pdfCeremonyTime: '16:00', rsvpDeadline: '',
   });
@@ -160,8 +158,12 @@ function WeddingEditorContent() {
             groomPhone: w.groomPhone || '', brideFatherName: w.brideFatherName || '', brideFatherPhone: w.brideFatherPhone || '',
             groomFatherName: w.groomFatherName || '', groomFatherPhone: w.groomFatherPhone || '', musicUrl: w.musicUrl || '',
             musicType: w.musicType || 'SPOTIFY',
-            primaryColor: w.primaryColor || '#c9a84c',
-            accentColor: w.accentColor || '#f0d080', fontFamily: w.fontFamily || 'Inter',
+            themePreset: w.themePreset || 'classic-gold',
+            primaryColor: w.primaryColor || '', accentColor: w.accentColor || '',
+            bgColor: w.bgColor || '', surfaceColor: w.surfaceColor || '',
+            cardColor: w.cardColor || '', textColor: w.textColor || '',
+            mutedColor: w.mutedColor || '', fontFamily: w.fontFamily || '',
+            bodyFont: w.bodyFont || '',
             pdfFont: w.pdfFont || 'Great Vibes', pdfWeddingDay: w.pdfWeddingDay || 'Saturday',
             pdfStartTime: w.pdfStartTime || '15:00', pdfEndTime: w.pdfEndTime || '23:00',
             pdfCeremonyName: w.pdfCeremonyName || 'The Ceremony', pdfCeremonyTime: w.pdfCeremonyTime || '16:00',
@@ -208,6 +210,18 @@ function WeddingEditorContent() {
         venueMapsUrl: form.venueMapsUrl || undefined,
         loveStory: form.loveStory || undefined,
         rsvpContacts: cleanRsvpContacts,
+        // The form uses '' for "inherit from preset"; the API models that as
+        // null. Sending '' would fail the hex/enum validators.
+        themePreset: form.themePreset || null,
+        primaryColor: form.primaryColor || undefined,
+        accentColor: form.accentColor || undefined,
+        bgColor: form.bgColor || null,
+        surfaceColor: form.surfaceColor || null,
+        cardColor: form.cardColor || null,
+        textColor: form.textColor || null,
+        mutedColor: form.mutedColor || null,
+        fontFamily: form.fontFamily || undefined,
+        bodyFont: form.bodyFont || null,
         // Sent explicitly so that removing the link preview image and hitting
         // Save actually clears the column — uploads write it server-side, but
         // a removal only lives in local state until this PUT carries the null.
@@ -915,31 +929,25 @@ function WeddingEditorContent() {
 
         {/* STYLE TAB */}
         {tab === 'style' && (
-          <div className="card" style={{ display: 'grid', gap: '20px' }}>
-            <div>
-              <label className="input-label">Color Theme</label>
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '8px' }}>
-                {COLOR_PRESETS.map(p => (
-                  <button key={p.label} type="button" onClick={() => { set('primaryColor', p.primary); set('accentColor', p.accent); }}
-                    style={{ width: '44px', height: '44px', borderRadius: '50%', background: `linear-gradient(135deg, ${p.primary}, ${p.accent})`, border: form.primaryColor === p.primary ? '3px solid white' : '3px solid transparent', cursor: 'pointer', outline: 'none', boxShadow: form.primaryColor === p.primary ? '0 0 0 2px var(--color-accent)' : 'none' }}
-                    title={p.label}
-                  />
-                ))}
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: '8px' }}>
-                  <input type="color" value={form.primaryColor} onChange={e => set('primaryColor', e.target.value)} style={{ width: '40px', height: '40px', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }} title="Custom primary" />
-                  <input type="color" value={form.accentColor} onChange={e => set('accentColor', e.target.value)} style={{ width: '40px', height: '40px', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }} title="Custom accent" />
-                </div>
-              </div>
-            </div>
-            <div>
-              <label className="input-label">Font Family</label>
-              <select className="input" value={form.fontFamily} onChange={e => set('fontFamily', e.target.value)} style={{ maxWidth: '300px' }}>
-                {['Inter', 'Playfair Display', 'Cormorant Garamond', 'Lora', 'Montserrat', 'Cinzel'].map(f => (
-                  <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+          <ThemeStudio
+            value={{
+              themePreset: form.themePreset,
+              primaryColor: form.primaryColor,
+              accentColor: form.accentColor,
+              bgColor: form.bgColor,
+              surfaceColor: form.surfaceColor,
+              cardColor: form.cardColor,
+              textColor: form.textColor,
+              mutedColor: form.mutedColor,
+              fontFamily: form.fontFamily,
+              bodyFont: form.bodyFont,
+            } satisfies ThemeFormState}
+            onChange={patch => setForm(f => ({ ...f, ...patch }))}
+            brideName={form.brideName}
+            groomName={form.groomName}
+            weddingDate={form.weddingDate}
+            venueName={form.venueName}
+          />
         )}
 
         {tab !== 'timeline' && (

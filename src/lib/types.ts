@@ -82,9 +82,20 @@ export interface WeddingDetails {
   timeline: TimelineEvent[];
   musicUrl?: string | null;
   musicType?: MusicType | null;
-  primaryColor: string;
-  accentColor: string;
-  fontFamily: string;
+  // ── Theme ──────────────────────────────────────────────────────────────
+  // null / absent means "inherit from themePreset", and an unset preset means
+  // Classic Gold. See src/lib/theme.ts for how these resolve.
+  themePreset?: string | null;
+  primaryColor?: string | null;
+  accentColor?: string | null;
+  bgColor?: string | null;
+  surfaceColor?: string | null;
+  cardColor?: string | null;
+  textColor?: string | null;
+  mutedColor?: string | null;
+  /** Heading font family. */
+  fontFamily?: string | null;
+  bodyFont?: string | null;
   pdfLogoUrl?: string | null;
   pdfFont?: string | null;
   pdfWeddingDay?: string | null;
