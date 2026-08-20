@@ -6,8 +6,8 @@ import toast from 'react-hot-toast';
 import api, { getErrorMessage } from '@/lib/api';
 import type { Guest, GuestTitle, RsvpContact, RsvpStatus, WhatsAppLinkData } from '@/lib/types';
 
-const TITLES: GuestTitle[] = ['MR', 'MRS', 'MS', 'DR', 'FAMILY', 'MASTER'];
-const TITLE_LABELS: Record<string, string> = { MR:'Mr.', MRS:'Mrs.', MS:'Ms.', DR:'Dr.', FAMILY:'Family', MASTER:'Master' };
+const TITLES: GuestTitle[] = ['MR', 'MRS', 'MR_AND_MRS', 'MS', 'DR', 'FAMILY', 'MASTER'];
+const TITLE_LABELS: Record<string, string> = { MR:'Mr.', MRS:'Mrs.', MR_AND_MRS:'Mr. & Mrs.', MS:'Ms.', DR:'Dr.', FAMILY:'Family', MASTER:'Master' };
 const RSVP_FILTERS = ['ALL', 'PENDING', 'ATTENDING', 'DECLINING', 'MAYBE'] as const;
 
 /**

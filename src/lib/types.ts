@@ -13,7 +13,7 @@ export interface AuthUser {
 
 export type AdminStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'EXPIRED';
 export type RsvpStatus  = 'PENDING' | 'ATTENDING' | 'DECLINING' | 'MAYBE';
-export type GuestTitle  = 'MR' | 'MRS' | 'MS' | 'DR' | 'FAMILY' | 'MASTER';
+export type GuestTitle  = 'MR' | 'MRS' | 'MR_AND_MRS' | 'MS' | 'DR' | 'FAMILY' | 'MASTER';
 export type MusicType   = 'SPOTIFY' | 'UPLOAD';
 
 // ─── Admin ──────────────────────────────────────────────────────────────────
