@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { format } from 'date-fns';
-import { LayoutDashboard, Settings, Users, LogOut, Heart, ChevronRight, ExternalLink } from 'lucide-react';
+import { LayoutDashboard, Settings, Users, LogOut, Heart, ChevronRight, ExternalLink, KeyRound } from 'lucide-react';
 import { getAuthUser, clearAuth } from '@/lib/auth';
 import type { AuthUser } from '@/lib/types';
 import toast from 'react-hot-toast';
@@ -12,6 +12,7 @@ const NAV = [
   { href: '/dashboard',     label: 'Dashboard',     icon: LayoutDashboard },
   { href: '/wedding/edit',  label: 'Wedding Editor', icon: Settings },
   { href: '/guests',        label: 'Guests & RSVP',  icon: Users },
+  { href: '/account',       label: 'Account',        icon: KeyRound },
 ];
 
 export default function AdminPortalLayout({ children }: { children: React.ReactNode }) {

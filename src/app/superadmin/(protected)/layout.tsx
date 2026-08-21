@@ -2,13 +2,14 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, Users, LogOut, Crown, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Users, LogOut, Crown, ChevronRight, KeyRound } from 'lucide-react';
 import { getAuthUser, clearAuth } from '@/lib/auth';
 import toast from 'react-hot-toast';
 
 const NAV = [
   { href: '/superadmin',        label: 'Dashboard', icon: LayoutDashboard },
   { href: '/superadmin/admins', label: 'Manage Admins', icon: Users },
+  { href: '/superadmin/account', label: 'Account', icon: KeyRound },
 ];
 
 export default function SuperAdminLayout({ children }: { children: React.ReactNode }) {

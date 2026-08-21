@@ -196,6 +196,7 @@ export default function GuestsPage() {
   const [showAdd, setShowAdd] = useState(searchParams.get('action') === 'add');
   const [whatsApp, setWhatsApp] = useState<WhatsAppLinkData | null>(null);
   const [csvLoading, setCsvLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
   const [rsvpContacts, setRsvpContacts] = useState<RsvpContact[]>([]);
 
   useEffect(() => {
@@ -257,6 +258,17 @@ export default function GuestsPage() {
     finally { setCsvLoading(false); e.target.value = ''; }
   }
 
+  async function handleExport() {
+    setExportLoading(true);
+    try {
+      const res = await api.get('/admin/guests/export', { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a'); a.href = url; a.download = 'guest-list.csv'; a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) { toast.error(getErrorMessage(e)); }
+    finally { setExportLoading(false); }
+  }
+
   async function handleTemplateDownload() {
     try {
       const res = await api.get('/admin/guests/csv-template', { responseType: 'blob' });
@@ -274,6 +286,7 @@ export default function GuestsPage() {
           <p className="page-subtitle">{total} total guests</p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="btn btn-secondary btn-sm" onClick={handleExport} disabled={exportLoading} title="Export guest list as CSV"><Download size={15} /> {exportLoading ? 'Exporting…' : 'Export'}</button>
           <button className="btn btn-ghost btn-sm" onClick={handleTemplateDownload} title="Download CSV template"><Download size={15} /> Template</button>
           <label className={`btn btn-secondary btn-sm ${csvLoading ? 'opacity-50' : ''}`} style={{ cursor: 'pointer' }}>
             <Upload size={15} /> {csvLoading ? 'Importing…' : 'Import CSV'}
