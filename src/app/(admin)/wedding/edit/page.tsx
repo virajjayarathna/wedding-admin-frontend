@@ -213,14 +213,14 @@ function WeddingEditorContent() {
         // The form uses '' for "inherit from preset"; the API models that as
         // null. Sending '' would fail the hex/enum validators.
         themePreset: form.themePreset || null,
-        primaryColor: form.primaryColor || undefined,
-        accentColor: form.accentColor || undefined,
+        primaryColor: form.primaryColor || null,
+        accentColor: form.accentColor || null,
         bgColor: form.bgColor || null,
         surfaceColor: form.surfaceColor || null,
         cardColor: form.cardColor || null,
         textColor: form.textColor || null,
         mutedColor: form.mutedColor || null,
-        fontFamily: form.fontFamily || undefined,
+        fontFamily: form.fontFamily || null,
         bodyFont: form.bodyFont || null,
         // Sent explicitly so that removing the link preview image and hitting
         // Save actually clears the column — uploads write it server-side, but
