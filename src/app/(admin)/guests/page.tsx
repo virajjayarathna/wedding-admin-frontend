@@ -6,8 +6,8 @@ import toast from 'react-hot-toast';
 import api, { getErrorMessage } from '@/lib/api';
 import type { Guest, GuestTitle, RsvpContact, RsvpStatus, WhatsAppLinkData } from '@/lib/types';
 
-const TITLES: GuestTitle[] = ['MR', 'MRS', 'MR_AND_MRS', 'MS', 'DR', 'FAMILY', 'MASTER', 'BRIG', 'BRIG_AND_MRS'];
-const TITLE_LABELS: Record<string, string> = { MR:'Mr.', MRS:'Mrs.', MR_AND_MRS:'Mr. & Mrs.', MS:'Ms.', DR:'Dr.', FAMILY:'Family', MASTER:'Master', BRIG:'Brig.', BRIG_AND_MRS:'Brig. and Mrs.' };
+const TITLES: GuestTitle[] = ['MR', 'MRS', 'MR_AND_MRS', 'MS', 'DR', 'MASTER', 'BRIG', 'BRIG_AND_MRS', 'MAJ'];
+const TITLE_LABELS: Record<string, string> = { MR:'Mr.', MRS:'Mrs.', MR_AND_MRS:'Mr. & Mrs.', MS:'Ms.', DR:'Dr.', FAMILY:'Family', MASTER:'Master', BRIG:'Brig.', BRIG_AND_MRS:'Brig. and Mrs.', MAJ:'Maj.' };
 const RSVP_FILTERS = ['ALL', 'PENDING', 'ATTENDING', 'DECLINING', 'MAYBE'] as const;
 
 /**
@@ -53,7 +53,7 @@ function RsvpBadge({ status }: { status: RsvpStatus }) {
 
 interface AddGuestModalProps { onClose: () => void; onSaved: () => void; rsvpContacts: RsvpContact[]; }
 function AddGuestModal({ onClose, onSaved, rsvpContacts }: AddGuestModalProps) {
-  const [form, setForm] = useState({ title: 'MR' as GuestTitle, firstName: '', lastName: '', phone: '', maxAttendants: 1, firstRsvpContactId: '', secondRsvpContactId: '' });
+  const [form, setForm] = useState({ title: 'MR' as GuestTitle, isFamily: false, firstName: '', lastName: '', phone: '', maxAttendants: 1, firstRsvpContactId: '', secondRsvpContactId: '' });
   const [loading, setLoading] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -85,6 +85,12 @@ function AddGuestModal({ onClose, onSaved, rsvpContacts }: AddGuestModalProps) {
             <select className="input" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value as GuestTitle }))}>
               {TITLES.map(t => <option key={t} value={t}>{TITLE_LABELS[t]}</option>)}
             </select>
+          </div>
+          <div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={form.isFamily} onChange={e => setForm(f => ({ ...f, isFamily: e.target.checked }))} />
+              Invite as family (adds &quot;and Family&quot; to the guest&apos;s name)
+            </label>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div><label className="input-label">First Name *</label><input className="input" value={form.firstName} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))} required /></div>
@@ -317,7 +323,7 @@ export default function GuestsPage() {
             ) : guests.map(g => (
               <tr key={g.id}>
                 <td>
-                  <div style={{ fontWeight: 500 }}>{TITLE_LABELS[g.title] || g.title} {g.firstName} {g.lastName}</div>
+                  <div style={{ fontWeight: 500 }}>{TITLE_LABELS[g.title] || g.title} {g.firstName} {g.lastName}{g.isFamily ? ' and Family' : ''}</div>
                   {g.dietaryNotes && <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>🍽 {g.dietaryNotes}</div>}
                 </td>
                 <td style={{ color: 'var(--color-text-secondary)', fontSize: '13px' }}>{g.phone || '—'}</td>

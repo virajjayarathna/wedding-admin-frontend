@@ -13,7 +13,7 @@ export interface AuthUser {
 
 export type AdminStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'EXPIRED';
 export type RsvpStatus  = 'PENDING' | 'ATTENDING' | 'DECLINING' | 'MAYBE';
-export type GuestTitle  = 'MR' | 'MRS' | 'MR_AND_MRS' | 'MS' | 'DR' | 'FAMILY' | 'MASTER' | 'BRIG' | 'BRIG_AND_MRS';
+export type GuestTitle  = 'MR' | 'MRS' | 'MR_AND_MRS' | 'MS' | 'DR' | 'FAMILY' | 'MASTER' | 'BRIG' | 'BRIG_AND_MRS' | 'MAJ';
 export type MusicType   = 'SPOTIFY' | 'UPLOAD';
 
 // ─── Admin ──────────────────────────────────────────────────────────────────
@@ -126,6 +126,7 @@ export interface Guest {
   id: string;
   weddingId: string;
   title: GuestTitle;
+  isFamily: boolean;
   firstName: string;
   lastName: string;
   phone?: string | null;
