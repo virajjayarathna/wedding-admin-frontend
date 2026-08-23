@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Plus, Search, Trash2, MessageCircle, RefreshCw, Download, Upload, X, Copy, Check } from 'lucide-react';
+import { Plus, Search, Trash2, MessageCircle, RefreshCw, Download, Upload, X, Copy, Check, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api, { getErrorMessage } from '@/lib/api';
 import type { Guest, GuestTitle, RsvpContact, RsvpStatus, WhatsAppLinkData } from '@/lib/types';
@@ -141,6 +141,105 @@ function AddGuestModal({ onClose, onSaved, rsvpContacts }: AddGuestModalProps) {
   );
 }
 
+interface EditGuestModalProps { guest: Guest; onClose: () => void; onSaved: () => void; rsvpContacts: RsvpContact[]; }
+function EditGuestModal({ guest, onClose, onSaved, rsvpContacts }: EditGuestModalProps) {
+  const [form, setForm] = useState({
+    title: guest.title,
+    isFamily: guest.isFamily,
+    firstName: guest.firstName,
+    lastName: guest.lastName,
+    phone: guest.phone || '',
+    maxAttendants: guest.maxAttendants,
+    firstRsvpContactId: guest.firstRsvpContactId || '',
+    secondRsvpContactId: guest.secondRsvpContactId || '',
+  });
+  const [loading, setLoading] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await api.patch(`/admin/guests/${guest.id}`, {
+        ...form,
+        firstRsvpContactId: form.firstRsvpContactId || undefined,
+        secondRsvpContactId: form.secondRsvpContactId || undefined,
+      });
+      toast.success('Guest updated!');
+      onSaved();
+      onClose();
+    } catch (e) { toast.error(getErrorMessage(e)); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 600 }}>Edit Guest</h2>
+          <button className="btn btn-ghost btn-icon" onClick={onClose}><X size={18} /></button>
+        </div>
+        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div>
+            <label className="input-label">Title</label>
+            <select className="input" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value as GuestTitle }))}>
+              {TITLES.map(t => <option key={t} value={t}>{TITLE_LABELS[t]}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={form.isFamily} onChange={e => setForm(f => ({ ...f, isFamily: e.target.checked }))} />
+              Invite as family (adds &quot;and Family&quot; to the guest&apos;s name)
+            </label>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div><label className="input-label">First Name *</label><input className="input" value={form.firstName} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))} required /></div>
+            <div><label className="input-label">Last Name *</label><input className="input" value={form.lastName} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))} required /></div>
+          </div>
+          <div>
+            <label className="input-label">Phone (for WhatsApp)</label>
+            <input className="input" type="tel" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="+94771234567" style={{ marginBottom: '12px' }} />
+
+            {rsvpContacts.length === 0 ? (
+              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: 0 }}>
+                No RSVP contacts configured yet. Add them under Wedding Editor → Venue &amp; RSVP to assign one here.
+              </p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label className="input-label">First RSVP Contact</label>
+                  <select className="input" value={form.firstRsvpContactId} onChange={e => setForm(f => ({ ...f, firstRsvpContactId: e.target.value }))}>
+                    <option value="">None</option>
+                    {rsvpContacts.filter(c => c.id !== form.secondRsvpContactId).map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="input-label">Second RSVP Contact</label>
+                  <select className="input" value={form.secondRsvpContactId} onChange={e => setForm(f => ({ ...f, secondRsvpContactId: e.target.value }))}>
+                    <option value="">None</option>
+                    {rsvpContacts.filter(c => c.id !== form.firstRsvpContactId).map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+          <div>
+            <label className="input-label">Max Attendants</label>
+            <input className="input" type="number" min={1} max={20} value={form.maxAttendants} onChange={e => setForm(f => ({ ...f, maxAttendants: parseInt(e.target.value) }))} style={{ maxWidth: '100px' }} />
+          </div>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+            <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Saving…' : 'Save Changes'}</button>
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 interface WhatsAppModalProps { data: WhatsAppLinkData; onClose: () => void; }
 function WhatsAppModal({ data, onClose }: WhatsAppModalProps) {
   const [copied, setCopied] = useState(false);
@@ -200,6 +299,7 @@ export default function GuestsPage() {
   const [search, setSearch] = useState('');
   const [rsvpFilter, setRsvpFilter] = useState<string>('ALL');
   const [showAdd, setShowAdd] = useState(searchParams.get('action') === 'add');
+  const [editingGuest, setEditingGuest] = useState<Guest | null>(null);
   const [whatsApp, setWhatsApp] = useState<WhatsAppLinkData | null>(null);
   const [csvLoading, setCsvLoading] = useState(false);
   const [rsvpContacts, setRsvpContacts] = useState<RsvpContact[]>([]);
@@ -332,6 +432,7 @@ export default function GuestsPage() {
                 <td style={{ color: 'var(--color-text-secondary)', fontSize: '13px', textAlign: 'center' }}>{g.rsvpStatus === 'ATTENDING' ? (g.attendingCount ?? '—') : '—'}</td>
                 <td>
                   <div style={{ display: 'flex', gap: '4px' }}>
+                    <button className="btn btn-ghost btn-sm btn-icon" title="Edit guest" onClick={() => setEditingGuest(g)}><Pencil size={14} /></button>
                     <button className="btn btn-ghost btn-sm btn-icon" title="Send WhatsApp invite" onClick={() => handleWhatsApp(g.id)}><MessageCircle size={14} /></button>
                     <button className="btn btn-ghost btn-sm btn-icon" title="Regenerate link" onClick={() => handleRegenerateToken(g.id)}><RefreshCw size={14} /></button>
                     <button className="btn btn-ghost btn-sm btn-icon" title="Delete guest" style={{ color: 'var(--color-error)' }} onClick={() => handleDelete(g.id, `${g.firstName} ${g.lastName}`)}><Trash2 size={14} /></button>
@@ -344,6 +445,7 @@ export default function GuestsPage() {
       </div>
 
       {showAdd && <AddGuestModal onClose={() => setShowAdd(false)} onSaved={fetchGuests} rsvpContacts={rsvpContacts} />}
+      {editingGuest && <EditGuestModal guest={editingGuest} onClose={() => setEditingGuest(null)} onSaved={fetchGuests} rsvpContacts={rsvpContacts} />}
       {whatsApp && <WhatsAppModal data={whatsApp} onClose={() => setWhatsApp(null)} />}
     </div>
   );
