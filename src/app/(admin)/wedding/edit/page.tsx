@@ -542,12 +542,12 @@ function WeddingEditorContent() {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
               <div>
-                <label className="input-label">Ceremony Name *</label>
-                <input className="input" value={form.pdfCeremonyName} onChange={e => set('pdfCeremonyName', e.target.value)} placeholder="Poruwa Ceremony" required />
+                <label className="input-label">Ceremony Name</label>
+                <input className="input" value={form.pdfCeremonyName} onChange={e => set('pdfCeremonyName', e.target.value)} placeholder="Poruwa Ceremony" />
               </div>
               <div>
-                <label className="input-label">Ceremony Time *</label>
-                <input className="input" type="time" value={form.pdfCeremonyTime} onChange={e => set('pdfCeremonyTime', e.target.value)} required />
+                <label className="input-label">Ceremony Time</label>
+                <input className="input" type="time" value={form.pdfCeremonyTime} onChange={e => set('pdfCeremonyTime', e.target.value)} />
               </div>
             </div>
 
