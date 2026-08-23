@@ -334,6 +334,16 @@ export default function GuestsPage() {
     } catch (e) { toast.error(getErrorMessage(e)); }
   }
 
+  async function handleToggleSent(id: string, sent: boolean) {
+    setGuests(list => list.map(g => g.id === id ? { ...g, sent } : g));
+    try {
+      await api.patch(`/admin/guests/${id}`, { sent });
+    } catch (e) {
+      setGuests(list => list.map(g => g.id === id ? { ...g, sent: !sent } : g));
+      toast.error(getErrorMessage(e));
+    }
+  }
+
   async function handleWhatsApp(id: string) {
     try {
       const { data } = await api.get(`/admin/guests/${id}/whatsapp-link`);
@@ -410,6 +420,7 @@ export default function GuestsPage() {
               <th>Guest</th>
               <th>Phone</th>
               <th>Max Attendants</th>
+              <th>Sent</th>
               <th>RSVP</th>
               <th>Attending Count</th>
               <th>Actions</th>
@@ -417,9 +428,9 @@ export default function GuestsPage() {
           </thead>
           <tbody>
             {loading ? [...Array(5)].map((_, i) => (
-              <tr key={i}>{[...Array(6)].map((_, j) => <td key={j}><div className="skeleton" style={{ height: '16px' }} /></td>)}</tr>
+              <tr key={i}>{[...Array(7)].map((_, j) => <td key={j}><div className="skeleton" style={{ height: '16px' }} /></td>)}</tr>
             )) : guests.length === 0 ? (
-              <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: '40px' }}>No guests found. Click "+ Add Guest" to get started.</td></tr>
+              <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: '40px' }}>No guests found. Click "+ Add Guest" to get started.</td></tr>
             ) : guests.map(g => (
               <tr key={g.id}>
                 <td>
@@ -428,6 +439,15 @@ export default function GuestsPage() {
                 </td>
                 <td style={{ color: 'var(--color-text-secondary)', fontSize: '13px' }}>{g.phone || '—'}</td>
                 <td style={{ color: 'var(--color-text-secondary)', fontSize: '13px', textAlign: 'center' }}>{g.maxAttendants}</td>
+                <td style={{ textAlign: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={g.sent}
+                    onChange={e => handleToggleSent(g.id, e.target.checked)}
+                    title="Mark invite as sent"
+                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                </td>
                 <td><RsvpBadge status={g.rsvpStatus} /></td>
                 <td style={{ color: 'var(--color-text-secondary)', fontSize: '13px', textAlign: 'center' }}>{g.rsvpStatus === 'ATTENDING' ? (g.attendingCount ?? '—') : '—'}</td>
                 <td>

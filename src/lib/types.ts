@@ -132,6 +132,7 @@ export interface Guest {
   phone?: string | null;
   maxAttendants: number;
   token: string;
+  sent: boolean;
   rsvpStatus: RsvpStatus;
   attendingCount?: number | null;
   dietaryNotes?: string | null;
