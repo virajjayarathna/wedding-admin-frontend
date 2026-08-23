@@ -17,12 +17,25 @@ export type GuestTitle  = 'MR' | 'MRS' | 'MR_AND_MRS' | 'MS' | 'DR' | 'FAMILY' |
 export type MusicType   = 'SPOTIFY' | 'UPLOAD';
 
 // ─── Admin ──────────────────────────────────────────────────────────────────
+/**
+ * Which invitation card template an admin account renders.
+ * WEDDING is the original (bride-first) card; HOME_COMING is the groom's-side
+ * card, which flips the couple order and the "daughter & son" wording.
+ */
+export type CeremonyType = 'WEDDING' | 'HOME_COMING';
+
+export const CEREMONY_TYPE_LABELS: Record<CeremonyType, string> = {
+  WEDDING: 'Wedding',
+  HOME_COMING: 'Home-coming',
+};
+
 export interface Admin {
   id: string;
   email: string;
   displayName: string;
   phone?: string | null;
   status: AdminStatus;
+  ceremonyType: CeremonyType;
   subscriptionStart?: string | null;
   subscriptionEnd?: string | null;
   createdAt: string;

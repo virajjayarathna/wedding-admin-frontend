@@ -4,7 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Search, Plus, ChevronLeft, ChevronRight, Pencil } from 'lucide-react';
 import api, { getErrorMessage } from '@/lib/api';
-import type { Admin, AdminStatus } from '@/lib/types';
+import { CEREMONY_TYPE_LABELS, type Admin, type AdminStatus } from '@/lib/types';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 
@@ -83,6 +83,7 @@ export default function AdminsListPage() {
               <th>Status</th>
               <th>Subscription End</th>
               <th>Wedding</th>
+              <th>Ceremony</th>
               <th>Guests</th>
               <th></th>
             </tr>
@@ -91,13 +92,13 @@ export default function AdminsListPage() {
             {loading ? (
               [...Array(5)].map((_, i) => (
                 <tr key={i}>
-                  {[...Array(6)].map((_, j) => (
-                    <td key={j}><div className="skeleton" style={{ height: '16px', width: j === 5 ? '40px' : '100%' }} /></td>
+                  {[...Array(7)].map((_, j) => (
+                    <td key={j}><div className="skeleton" style={{ height: '16px', width: j === 6 ? '40px' : '100%' }} /></td>
                   ))}
                 </tr>
               ))
             ) : admins.length === 0 ? (
-              <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: '40px' }}>No admins found</td></tr>
+              <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: '40px' }}>No admins found</td></tr>
             ) : admins.map(admin => (
               <tr key={admin.id}>
                 <td>
@@ -110,6 +111,9 @@ export default function AdminsListPage() {
                 </td>
                 <td style={{ color: 'var(--color-text-secondary)', fontSize: '13px' }}>
                   {admin.wedding ? `${admin.wedding.brideName} & ${admin.wedding.groomName}` : <span style={{ color: 'var(--color-text-muted)' }}>Not set up</span>}
+                </td>
+                <td style={{ color: 'var(--color-text-secondary)', fontSize: '13px' }}>
+                  {CEREMONY_TYPE_LABELS[admin.ceremonyType] ?? CEREMONY_TYPE_LABELS.WEDDING}
                 </td>
                 <td style={{ color: 'var(--color-text-secondary)', fontSize: '13px' }}>
                   {admin.wedding?._count?.guests ?? '—'}

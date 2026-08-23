@@ -6,9 +6,10 @@ import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import api, { getErrorMessage } from '@/lib/api';
-import type { Admin, AdminStatus } from '@/lib/types';
+import { CEREMONY_TYPE_LABELS, type Admin, type AdminStatus, type CeremonyType } from '@/lib/types';
 
 const STATUS_OPTIONS: AdminStatus[] = ['PENDING', 'ACTIVE', 'SUSPENDED', 'EXPIRED'];
+const CEREMONY_OPTIONS: CeremonyType[] = ['WEDDING', 'HOME_COMING'];
 
 export default function AdminDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -19,7 +20,7 @@ export default function AdminDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
-  const [form, setForm] = useState({ displayName: '', email: '', phone: '', status: '' as AdminStatus, subscriptionStart: '', subscriptionEnd: '' });
+  const [form, setForm] = useState({ displayName: '', email: '', phone: '', status: '' as AdminStatus, ceremonyType: 'WEDDING' as CeremonyType, subscriptionStart: '', subscriptionEnd: '' });
 
   useEffect(() => {
     api.get(`/superadmin/admins/${id}`)
@@ -31,6 +32,7 @@ export default function AdminDetailPage() {
           email: a.email,
           phone: a.phone || '',
           status: a.status,
+          ceremonyType: a.ceremonyType ?? 'WEDDING',
           subscriptionStart: a.subscriptionStart ? a.subscriptionStart.substring(0, 10) : '',
           subscriptionEnd: a.subscriptionEnd ? a.subscriptionEnd.substring(0, 10) : '',
         });
@@ -43,7 +45,7 @@ export default function AdminDetailPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.patch(`/superadmin/admins/${id}`, { displayName: form.displayName, email: form.email, phone: form.phone || undefined });
+      await api.patch(`/superadmin/admins/${id}`, { displayName: form.displayName, email: form.email, phone: form.phone || undefined, ceremonyType: form.ceremonyType });
       await api.patch(`/superadmin/admins/${id}/subscription`, {
         status: form.status,
         subscriptionStart: form.subscriptionStart ? new Date(form.subscriptionStart).toISOString() : null,
@@ -106,6 +108,15 @@ export default function AdminDetailPage() {
             <div><label className="input-label">Display Name</label><input className="input" value={form.displayName} onChange={e => setForm(f => ({ ...f, displayName: e.target.value }))} required /></div>
             <div><label className="input-label">Email</label><input type="email" className="input" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required /></div>
             <div><label className="input-label">Phone</label><input className="input" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></div>
+            <div>
+              <label className="input-label">Ceremony Type</label>
+              <select className="input" value={form.ceremonyType} onChange={e => setForm(f => ({ ...f, ceremonyType: e.target.value as CeremonyType }))}>
+                {CEREMONY_OPTIONS.map(c => <option key={c} value={c}>{CEREMONY_TYPE_LABELS[c]}</option>)}
+              </select>
+              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '6px' }}>
+                Changing this re-renders the couple&apos;s invitation and PDF straight away — home-coming reads groom first.
+              </p>
+            </div>
           </div>
         </div>
 
