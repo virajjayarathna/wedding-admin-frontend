@@ -69,6 +69,9 @@ export interface RsvpContact {
 export interface WeddingDetails {
   id: string;
   adminId: string;
+  // Set on the parent Admin account by the superadmin, joined in here by
+  // GET /admin/wedding — drives the wedding/homecoming preview wording below.
+  ceremonyType?: CeremonyType;
   brideName: string;
   groomName: string;
   weddingDate: string;

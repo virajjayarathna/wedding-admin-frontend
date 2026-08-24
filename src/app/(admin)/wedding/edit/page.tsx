@@ -394,8 +394,11 @@ function WeddingEditorContent() {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
       })
     : '';
+  const isHomeComing = wedding?.ceremonyType === 'HOME_COMING';
   const previewDescription = form.brideName && form.groomName
-    ? `You are cordially invited to the wedding of ${form.brideName} & ${form.groomName}${previewDateText ? ` on ${previewDateText}` : ''}. View your invitation and RSVP here.`
+    ? isHomeComing
+      ? `You are cordially invited to the homecoming of ${form.groomName} & ${form.brideName}${previewDateText ? ` on ${previewDateText}` : ''}. View your invitation and RSVP here.`
+      : `You are cordially invited to the wedding of ${form.brideName} & ${form.groomName}${previewDateText ? ` on ${previewDateText}` : ''}. View your invitation and RSVP here.`
     : 'You are invited to celebrate our special day.';
   let previewHost = guestBaseUrl;
   try { previewHost = new URL(guestBaseUrl).host; } catch { /* keep the raw value */ }
