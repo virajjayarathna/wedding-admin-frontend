@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { format } from 'date-fns';
 import { LayoutDashboard, Settings, Users, LogOut, Heart, ChevronRight, ExternalLink } from 'lucide-react';
 import { getAuthUser, clearAuth } from '@/lib/auth';
+import api from '@/lib/api';
 import type { AuthUser } from '@/lib/types';
 import toast from 'react-hot-toast';
 
@@ -18,6 +19,7 @@ export default function AdminPortalLayout({ children }: { children: React.ReactN
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [weddingSlug, setWeddingSlug] = useState<string | null>(null);
 
   useEffect(() => {
     const u = getAuthUser();
@@ -27,6 +29,13 @@ export default function AdminPortalLayout({ children }: { children: React.ReactN
     }
     setUser(u);
   }, [router]);
+
+  useEffect(() => {
+    if (!user) return;
+    api.get('/admin/wedding')
+      .then(r => setWeddingSlug(r.data.data?.weddingSlug || null))
+      .catch(() => {});
+  }, [user]);
 
   function handleLogout() {
     clearAuth();
@@ -101,11 +110,20 @@ export default function AdminPortalLayout({ children }: { children: React.ReactN
             );
           })}
 
-          {/* Preview link */}
-          <a href={`${guestBaseUrl}`} target="_blank" rel="noopener noreferrer" className="sidebar-item" style={{ marginTop: '8px' }}>
-            <ExternalLink size={16} />
-            Preview Page
-          </a>
+          {/* Preview link — deep-links straight into this admin's invite page
+              (guestBaseUrl + weddingSlug) instead of the bare guest domain,
+              which just prompts for a personalised link. */}
+          {weddingSlug ? (
+            <a href={`${guestBaseUrl}/invite/${weddingSlug}`} target="_blank" rel="noopener noreferrer" className="sidebar-item" style={{ marginTop: '8px' }}>
+              <ExternalLink size={16} />
+              Preview Page
+            </a>
+          ) : (
+            <Link href="/wedding/edit" className="sidebar-item" style={{ marginTop: '8px', opacity: 0.6 }} title="Set up your wedding page first">
+              <ExternalLink size={16} />
+              Preview Page
+            </Link>
+          )}
         </nav>
 
         {/* Subscription badge */}
