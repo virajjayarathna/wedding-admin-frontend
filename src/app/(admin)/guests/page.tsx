@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import { Plus, Search, Trash2, MessageCircle, RefreshCw, Download, Upload, X, Copy, Check, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -72,7 +73,7 @@ function AddGuestModal({ onClose, onSaved, rsvpContacts }: AddGuestModalProps) {
     finally { setLoading(false); }
   }
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -137,7 +138,8 @@ function AddGuestModal({ onClose, onSaved, rsvpContacts }: AddGuestModalProps) {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -171,7 +173,7 @@ function EditGuestModal({ guest, onClose, onSaved, rsvpContacts }: EditGuestModa
     finally { setLoading(false); }
   }
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -236,7 +238,8 @@ function EditGuestModal({ guest, onClose, onSaved, rsvpContacts }: EditGuestModa
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -261,7 +264,7 @@ function WhatsAppModal({ data, onClose }: WhatsAppModalProps) {
     copyResetTimer.current = setTimeout(() => setCopied(false), 2000);
   }
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
@@ -287,7 +290,8 @@ function WhatsAppModal({ data, onClose }: WhatsAppModalProps) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
