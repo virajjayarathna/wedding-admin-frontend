@@ -158,6 +158,29 @@ function EditGuestModal({ guest, onClose, onSaved, rsvpContacts }: EditGuestModa
     attendingCount: guest.attendingCount ?? 1,
   });
   const [loading, setLoading] = useState(false);
+  const [token, setToken] = useState(guest.token);
+  const [regenerating, setRegenerating] = useState(false);
+  const guestBaseUrl = process.env.NEXT_PUBLIC_GUEST_BASE_URL || 'http://localhost:3001';
+  const inviteUrl = `${guestBaseUrl}/invite/${token}`;
+  const guestFullName = `${guest.firstName} ${guest.lastName}`;
+
+  async function handleRegenerateToken() {
+    const confirmed = confirm(
+      `Regenerate the invite link for ${guestFullName}?\n\n` +
+      `The current link (${inviteUrl}) will stop working immediately — if it was already sent, ${guest.firstName} will no longer be able to open it or RSVP with it. ` +
+      `Any RSVP they've already submitted is kept. You'll need to send them the new link (WhatsApp button on the guest row) after this.\n\n` +
+      `This cannot be undone.`
+    );
+    if (!confirmed) return;
+    setRegenerating(true);
+    try {
+      const { data } = await api.post(`/admin/guests/${guest.id}/regenerate-token`);
+      setToken(data.data.token);
+      toast.success('Invite link regenerated — remember to resend it');
+      onSaved();
+    } catch (e) { toast.error(getErrorMessage(e)); }
+    finally { setRegenerating(false); }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -267,6 +290,18 @@ function EditGuestModal({ guest, onClose, onSaved, rsvpContacts }: EditGuestModa
             <p style={{ margin: '6px 0 0', fontSize: '11.5px', color: 'var(--color-text-muted)' }}>
               Overriding this here counts as an admin edit. If the guest opens their invite link and RSVPs again, their answer replaces this.
             </p>
+          </div>
+          <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '14px' }}>
+            <label className="input-label">Invite Link</label>
+            <div style={{ padding: '10px 12px', background: 'var(--color-surface-2)', borderRadius: '8px', fontSize: '12.5px', wordBreak: 'break-all', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>
+              {inviteUrl}
+            </div>
+            <p style={{ margin: '0 0 10px', fontSize: '11.5px', lineHeight: 1.5, color: 'var(--color-error)' }}>
+              Regenerating invalidates this link immediately — it will stop working for {guest.firstName}, even if already sent, and you'll need to resend the new one. Any RSVP already submitted is kept.
+            </p>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={handleRegenerateToken} disabled={regenerating}>
+              <RefreshCw size={14} /> {regenerating ? 'Regenerating…' : 'Regenerate Link'}
+            </button>
           </div>
           <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
             <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Saving…' : 'Save Changes'}</button>
@@ -391,15 +426,6 @@ export default function GuestsPage() {
     } catch (e) { toast.error(getErrorMessage(e)); }
   }
 
-  async function handleRegenerateToken(id: string) {
-    if (!confirm('Regenerate invite link? The old link will stop working.')) return;
-    try {
-      await api.post(`/admin/guests/${id}/regenerate-token`);
-      toast.success('Invite link regenerated');
-      fetchGuests();
-    } catch (e) { toast.error(getErrorMessage(e)); }
-  }
-
   async function handleCsvImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -506,7 +532,6 @@ export default function GuestsPage() {
                   <div style={{ display: 'flex', gap: '4px' }}>
                     <button className="btn btn-ghost btn-sm btn-icon" title="Edit guest" onClick={() => setEditingGuest(g)}><Pencil size={14} /></button>
                     <button className="btn btn-ghost btn-sm btn-icon" title="Send WhatsApp invite" onClick={() => handleWhatsApp(g.id)}><MessageCircle size={14} /></button>
-                    <button className="btn btn-ghost btn-sm btn-icon" title="Regenerate link" onClick={() => handleRegenerateToken(g.id)}><RefreshCw size={14} /></button>
                     <button className="btn btn-ghost btn-sm btn-icon" title="Delete guest" style={{ color: 'var(--color-error)' }} onClick={() => handleDelete(g.id, `${g.firstName} ${g.lastName}`)}><Trash2 size={14} /></button>
                   </div>
                 </td>
