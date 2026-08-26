@@ -141,6 +141,7 @@ export interface Guest {
   dietaryNotes?: string | null;
   notes?: string | null;
   rsvpSubmittedAt?: string | null;
+  rsvpUpdatedBy?: 'ADMIN' | 'GUEST' | null;
   firstRsvpContactId?: string | null;
   secondRsvpContactId?: string | null;
   createdAt: string;

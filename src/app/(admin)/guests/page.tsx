@@ -154,6 +154,8 @@ function EditGuestModal({ guest, onClose, onSaved, rsvpContacts }: EditGuestModa
     maxAttendants: guest.maxAttendants,
     firstRsvpContactId: guest.firstRsvpContactId || '',
     secondRsvpContactId: guest.secondRsvpContactId || '',
+    rsvpStatus: guest.rsvpStatus,
+    attendingCount: guest.attendingCount ?? 1,
   });
   const [loading, setLoading] = useState(false);
 
@@ -165,6 +167,7 @@ function EditGuestModal({ guest, onClose, onSaved, rsvpContacts }: EditGuestModa
         ...form,
         firstRsvpContactId: form.firstRsvpContactId || undefined,
         secondRsvpContactId: form.secondRsvpContactId || undefined,
+        attendingCount: form.rsvpStatus === 'ATTENDING' ? form.attendingCount : undefined,
       });
       toast.success('Guest updated!');
       onSaved();
@@ -231,6 +234,39 @@ function EditGuestModal({ guest, onClose, onSaved, rsvpContacts }: EditGuestModa
           <div>
             <label className="input-label">Max Attendants</label>
             <input className="input" type="number" min={1} max={20} value={form.maxAttendants} onChange={e => setForm(f => ({ ...f, maxAttendants: parseInt(e.target.value) }))} style={{ maxWidth: '100px' }} />
+          </div>
+          <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '14px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px' }}>
+              <label className="input-label" style={{ margin: 0 }}>RSVP Status</label>
+              {guest.rsvpUpdatedBy && (
+                <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                  Last set by {guest.rsvpUpdatedBy === 'ADMIN' ? 'admin' : 'guest'}
+                  {guest.rsvpSubmittedAt ? ` on ${new Date(guest.rsvpSubmittedAt).toLocaleString()}` : ''}
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: form.rsvpStatus === 'ATTENDING' ? '1fr 1fr' : '1fr', gap: '12px' }}>
+              <select className="input" value={form.rsvpStatus} onChange={e => setForm(f => ({ ...f, rsvpStatus: e.target.value as RsvpStatus }))}>
+                <option value="PENDING">Pending</option>
+                <option value="ATTENDING">Attending</option>
+                <option value="DECLINING">Declining</option>
+                <option value="MAYBE">Maybe</option>
+              </select>
+              {form.rsvpStatus === 'ATTENDING' && (
+                <input
+                  className="input"
+                  type="number"
+                  min={1}
+                  max={form.maxAttendants}
+                  value={form.attendingCount}
+                  onChange={e => setForm(f => ({ ...f, attendingCount: parseInt(e.target.value) }))}
+                  placeholder="Attending count"
+                />
+              )}
+            </div>
+            <p style={{ margin: '6px 0 0', fontSize: '11.5px', color: 'var(--color-text-muted)' }}>
+              Overriding this here counts as an admin edit. If the guest opens their invite link and RSVPs again, their answer replaces this.
+            </p>
           </div>
           <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
             <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Saving…' : 'Save Changes'}</button>
@@ -452,7 +488,19 @@ export default function GuestsPage() {
                     style={{ width: '16px', height: '16px', cursor: 'pointer' }}
                   />
                 </td>
-                <td><RsvpBadge status={g.rsvpStatus} /></td>
+                <td>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <RsvpBadge status={g.rsvpStatus} />
+                    {g.rsvpUpdatedBy && (
+                      <span
+                        title={`Last set by ${g.rsvpUpdatedBy === 'ADMIN' ? 'admin' : 'guest'}${g.rsvpSubmittedAt ? ` on ${new Date(g.rsvpSubmittedAt).toLocaleString()}` : ''}`}
+                        style={{ fontSize: '10px', color: 'var(--color-text-muted)', cursor: 'default' }}
+                      >
+                        {g.rsvpUpdatedBy === 'ADMIN' ? '(admin)' : '(guest)'}
+                      </span>
+                    )}
+                  </div>
+                </td>
                 <td style={{ color: 'var(--color-text-secondary)', fontSize: '13px', textAlign: 'center' }}>{g.rsvpStatus === 'ATTENDING' ? (g.attendingCount ?? '—') : '—'}</td>
                 <td>
                   <div style={{ display: 'flex', gap: '4px' }}>
