@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import api, { getErrorMessage } from '@/lib/api';
 import type { Guest, GuestTitle, RsvpContact, RsvpStatus, WhatsAppLinkData } from '@/lib/types';
 
-const TITLES: GuestTitle[] = ['MR', 'MRS', 'MR_AND_MRS', 'MS', 'DR', 'MASTER', 'BRIG', 'BRIG_AND_MRS', 'MAJ'];
+const PRESET_TITLES: GuestTitle[] = ['MR', 'MR_AND_MRS', 'MRS', 'MS', 'DR'];
 const TITLE_LABELS: Record<string, string> = { MR:'Mr.', MRS:'Mrs.', MR_AND_MRS:'Mr. & Mrs.', MS:'Ms.', DR:'Dr.', FAMILY:'Family', MASTER:'Master', BRIG:'Brig.', BRIG_AND_MRS:'Brig. and Mrs.', MAJ:'Maj.' };
 const RSVP_FILTERS = ['ALL', 'PENDING', 'ATTENDING', 'DECLINING', 'MAYBE'] as const;
 
@@ -55,6 +55,7 @@ function RsvpBadge({ status }: { status: RsvpStatus }) {
 interface AddGuestModalProps { onClose: () => void; onSaved: () => void; rsvpContacts: RsvpContact[]; }
 function AddGuestModal({ onClose, onSaved, rsvpContacts }: AddGuestModalProps) {
   const [form, setForm] = useState({ title: 'MR' as GuestTitle, isFamily: false, firstName: '', lastName: '', phone: '', maxAttendants: 1, firstRsvpContactId: '', secondRsvpContactId: '' });
+  const [customTitle, setCustomTitle] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -83,9 +84,28 @@ function AddGuestModal({ onClose, onSaved, rsvpContacts }: AddGuestModalProps) {
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div>
             <label className="input-label">Title</label>
-            <select className="input" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value as GuestTitle }))}>
-              {TITLES.map(t => <option key={t} value={t}>{TITLE_LABELS[t]}</option>)}
+            <select
+              className="input"
+              value={customTitle ? 'CUSTOM' : form.title}
+              onChange={e => {
+                const val = e.target.value;
+                if (val === 'CUSTOM') { setCustomTitle(true); setForm(f => ({ ...f, title: '' })); }
+                else { setCustomTitle(false); setForm(f => ({ ...f, title: val as GuestTitle })); }
+              }}
+            >
+              {PRESET_TITLES.map(t => <option key={t} value={t}>{TITLE_LABELS[t]}</option>)}
+              <option value="CUSTOM">Custom</option>
             </select>
+            {customTitle && (
+              <input
+                className="input"
+                style={{ marginTop: '8px' }}
+                placeholder="Enter custom title"
+                value={form.title}
+                onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                required
+              />
+            )}
           </div>
           <div>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer' }}>
@@ -145,8 +165,10 @@ function AddGuestModal({ onClose, onSaved, rsvpContacts }: AddGuestModalProps) {
 
 interface EditGuestModalProps { guest: Guest; onClose: () => void; onSaved: () => void; rsvpContacts: RsvpContact[]; }
 function EditGuestModal({ guest, onClose, onSaved, rsvpContacts }: EditGuestModalProps) {
+  const isPresetTitle = (PRESET_TITLES as readonly string[]).includes(guest.title);
+  const [customTitle, setCustomTitle] = useState(!isPresetTitle);
   const [form, setForm] = useState({
-    title: guest.title,
+    title: isPresetTitle ? guest.title : (TITLE_LABELS[guest.title] || guest.title),
     isFamily: guest.isFamily,
     firstName: guest.firstName,
     lastName: guest.lastName,
@@ -209,9 +231,28 @@ function EditGuestModal({ guest, onClose, onSaved, rsvpContacts }: EditGuestModa
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div>
             <label className="input-label">Title</label>
-            <select className="input" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value as GuestTitle }))}>
-              {TITLES.map(t => <option key={t} value={t}>{TITLE_LABELS[t]}</option>)}
+            <select
+              className="input"
+              value={customTitle ? 'CUSTOM' : form.title}
+              onChange={e => {
+                const val = e.target.value;
+                if (val === 'CUSTOM') { setCustomTitle(true); setForm(f => ({ ...f, title: '' })); }
+                else { setCustomTitle(false); setForm(f => ({ ...f, title: val as GuestTitle })); }
+              }}
+            >
+              {PRESET_TITLES.map(t => <option key={t} value={t}>{TITLE_LABELS[t]}</option>)}
+              <option value="CUSTOM">Custom</option>
             </select>
+            {customTitle && (
+              <input
+                className="input"
+                style={{ marginTop: '8px' }}
+                placeholder="Enter custom title"
+                value={form.title}
+                onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                required
+              />
+            )}
           </div>
           <div>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer' }}>
